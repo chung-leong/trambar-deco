@@ -9,6 +9,7 @@ var CommandLineUsage = require('command-line-usage');
 var Ignore = require('ignore');
 var Chokidar = require('chokidar');
 var Express = require('express');
+var SockJS = require('sockjs');
 
 var optionDefinitions = [
     {
@@ -88,51 +89,130 @@ if (options.json) {
     });
 } else {
     var app = Express();
+    var server = app.listen(port);
     app.set('json spaces', 2);
-
     app.get('/data', function(req, res) {
         return findFilesInSelectedfolders().then((folders) => {
             var data = exportData(folders);
             res.json(data);
         });
     });
-    var server = app.listen(port);
+    app.get('/images/*', function(req, res) {
+        var relPath = req.params[0];
+        var absPath = Path.join(selectedRootPath, relPath);
+        var folderName = Path.basename(Path.dirname(relPath));
+        if (folderName !== '.trambar') {
+            res.sendStatus(404);
+        } else if (!/\.(jpg|jpeg|png|gif|svg)$/i.test(absPath)) {
+            res.sendStatus(404);
+        } else if (!FS.existsSync(absPath)) {
+            res.sendStatus(404);
+        } else {
+            res.sendFile(absPath);
+        }
+    });
+    app.use(Express.static(Path.join(__dirname, 'www')));
 
+    // add websocket handling
+    var sockJS = SockJS.createServer({
+        sockjs_url: 'http://cdn.jsdelivr.net/sockjs/1.1.2/sockjs.min.js'
+    });
+    var sockets = [];
+    sockJS.on('connection', (socket) => {
+        sockets.push(socket);
+        socket.on('close', () => {
+            _.pull(sockets, socket);
+        });
+    });
+    sockJS.installHandlers(server, { prefix:'/socket' });
+
+    // do a scan to populate the .gitignore cache, then
+    // start watching the source folders for changes
     findFilesInSelectedfolders().then((folders) => {
         startFileWatch();
     });
-}
 
-var watcher;
+    var watcher;
 
-/**
- * Start monitor folders for changes
- */
-function startFileWatch() {
-    watcher = Chokidar.watch(selectedFolderPaths, {
-        ignored: shouldIgnoreSync,
-        ignoreInitial: true,
-    });
-    watcher.on('add', (path) => {
-        console.log(`File ${path} has been added`);
-    });
-    watcher.on('change', (path) => {
-        console.log(`File ${path} has been changed`);
-    });
-    watcher.on('unlink', (path) => {
-        console.log(`File ${path} has been removed`);
-    });
-}
-
-/**
- * Restart file monitoring
- */
-function restartFileWatch() {
-    if (watcher) {
-        watcher.close();
-        watcher = null;
+    /**
+     * Start monitor folders for changes
+     */
+    function startFileWatch() {
+        // using .gitignore files to determine what files to ignore
+        watcher = Chokidar.watch(selectedFolderPaths, {
+            ignored: shouldIgnoreSync,
+            ignoreInitial: true,
+        });
+        watcher.on('add', (path) => {
+            invalidateFolderlisting(path);
+            invalidateTrambarFolder(path);
+            invalidateGitIgnore(path);
+        });
+        watcher.on('change', (path) => {
+            invalidateTrambarFolder(path);
+            invalidateGitIgnore(path);
+        });
+        watcher.on('unlink', (path) => {
+            invalidateFolderlisting(path);
+            invalidateTrambarFolder(path);
+            invalidateGitIgnore(path);
+        });
     }
-    startFileWatch();
+
+    /**
+     * Invalidate folder cache
+     *
+     * @param  {String} path
+     */
+    function invalidateFolderlisting(path) {
+        var folderPath = Path.dirname(path);
+        clearFolderCache(folderPath);
+        console.log('Clearing listing: ' + folderPath);
+    }
+
+    /**
+     * Invalidate .trambar cache
+     *
+     * @param  {String} path
+     */
+    function invalidateTrambarFolder(path) {
+        var folderPath = Path.dirname(path);
+        var folderName = Path.basename(folderPath);
+        if (folderName === '.trambar') {
+            var targetFolderPath = Path.dirname(folderPath);
+            clearTrambarFolderCache(targetFolderPath);
+            console.log('Clearing .trambar: ' + targetFolderPath);
+        }
+    }
+
+    /**
+     * Invlalidate .gitignore
+     *
+     * @param  {String} path
+     */
+    function invalidateGitIgnore(path) {
+        var folderPath = Path.dirname(path);
+        var fileName = Path.basename(path);
+        if (fileName === '.gitignore') {
+            clearGitignoreCache(folderPath);
+            console.log('Clearing .gitignore: ' + folderPath);
+
+            findFilesInSelectedfolders().then((folders) => {
+                restartFileWatch();
+            });
+        }
+    }
+
+    /**
+     * Restart file monitoring
+     */
+    function restartFileWatch() {
+        if (watcher) {
+            watcher.close();
+            watcher = null;
+        }
+        startFileWatch();
+    }
 }
 
 /**
@@ -443,7 +523,7 @@ function clearTrambarFolderCache(folderPath) {
     if (!folderPath) {
         trambarFolderCache = {};
     } else {
-        trambarFolderCache = omitfolder(trambarFolderCache, folderPath);
+        trambarFolderCache = omitFolder(trambarFolderCache, folderPath);
     }
 }
 
@@ -544,7 +624,7 @@ function clearGitignoreCache(folderPath) {
    if (!folderPath) {
        gitignoreCache = {};
    } else {
-       gitignoreCache = omitfolder(gitignoreCache, folderPath);
+       gitignoreCache = omitFolder(gitignoreCache, folderPath);
    }
 }
 

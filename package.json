@@ -42,6 +42,7 @@
     "command-line-usage": "^4.0.1",
     "express": "^4.15.4",
     "ignore": "^3.3.5",
-    "lodash": "^4.17.4"
+    "lodash": "^4.17.4",
+    "sockjs": "^0.3.18"
   }
 }
