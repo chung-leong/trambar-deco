@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "watch": "webpack --watch",
+    "build": "webpack",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -29,8 +31,10 @@
     "mark-gor": "^0.0.4",
     "node-sass": "^4.5.3",
     "react": "~15.4.0",
+    "react-dom": "~15.4.0",
     "sass-loader": "^6.0.5",
     "style-loader": "^0.17.0",
+    "url-loader": "^0.5.8",
     "webpack": "^2.5.1",
     "webpack-dev-server": "^2.4.5"
   },
