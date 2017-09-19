@@ -7,6 +7,8 @@ var Path = require('path');
 var CommandLineArgs = require('command-line-args');
 var CommandLineUsage = require('command-line-usage');
 var Ignore = require('ignore');
+var Chokidar = require('chokidar');
+var Express = require('express');
 
 var optionDefinitions = [
     {
@@ -20,10 +22,15 @@ var optionDefinitions = [
         type: Boolean
     },
     {
-      name: 'help',
-      alias: 'h',
-      type: Boolean,
-      description: 'Print this usage guide.'
+        name: 'json',
+        type: Boolean,
+        description: 'Output component information in JSON format',
+    },
+    {
+        name: 'help',
+        alias: 'h',
+        type: Boolean,
+        description: 'Print this usage guide'
     }
 ];
 var scriptDescription = [
@@ -46,21 +53,169 @@ if (options.help) {
     process.exit(0);
 }
 
+var port = parseInt(options.port) || 8118;
 var languageCode = (process.env.LANG || 'zz').substr(0, 2).toLowerCase();
 
 // default to cwd if no folder is given
-var folderPaths = options['*'];
-if (_.isEmpty(folderPaths)) {
-    folderPaths = [ '.' ];
+var selectedFolderPaths = options['*'];
+if (_.isEmpty(selectedFolderPaths)) {
+    selectedFolderPaths = [ '.' ];
+}
+// use absolute paths
+selectedFolderPaths = _.map(selectedFolderPaths, (path) => {
+    return Path.resolve(path);
+});
+
+// look for git root folder
+var selectedRootPath;
+_.each(selectedFolderPaths, (path) => {
+    var rootPath = findGitFolder(path);
+    if (!rootPath) {
+        console.log(`Not in a git repository: ${path}`);
+        process.exit(-1);
+    }
+    if (selectedRootPath && selectedRootPath !== rootPath) {
+        console.log(`In a different git respository: ${path}`);
+        process.exit(-1);
+    }
+    selectedRootPath = rootPath;
+});
+
+if (options.json) {
+    return findFilesInSelectedfolders().then((folders) => {
+        var data = exportData(folders);
+        console.log(JSON.stringify(data, undefined, 2));
+    });
+} else {
+    var app = Express();
+    app.set('json spaces', 2);
+
+    app.get('/data', function(req, res) {
+        return findFilesInSelectedfolders().then((folders) => {
+            var data = exportData(folders);
+            res.json(data);
+        });
+    });
+    var server = app.listen(port);
+
+    findFilesInSelectedfolders().then((folders) => {
+        startFileWatch();
+    });
 }
 
-// scan directory for files
-Promise.map(folderPaths, (folderPath) => {
-    return findFiles(folderPath).then((folder) => {
-        // look up component description
-        return attachComponentsToFiles(folder).return(folder);
+var watcher;
+
+/**
+ * Start monitor folders for changes
+ */
+function startFileWatch() {
+    watcher = Chokidar.watch(selectedFolderPaths, {
+        ignored: shouldIgnoreSync,
+        ignoreInitial: true,
     });
-}).then((folders) => {
+    watcher.on('add', (path) => {
+        console.log(`File ${path} has been added`);
+    });
+    watcher.on('change', (path) => {
+        console.log(`File ${path} has been changed`);
+    });
+    watcher.on('unlink', (path) => {
+        console.log(`File ${path} has been removed`);
+    });
+}
+
+/**
+ * Restart file monitoring
+ */
+function restartFileWatch() {
+    if (watcher) {
+        watcher.close();
+        watcher = null;
+    }
+    startFileWatch();
+}
+
+/**
+ * Look for files and their descriptoin in selected folders
+ *
+ * @return {Promise<Array<Folder>>}
+ */
+function findFilesInSelectedfolders() {
+    return Promise.map(selectedFolderPaths, (folderPath) => {
+        return findFiles(folderPath);
+    });
+}
+
+/**
+ * Export all data collected about the selected folders
+ *
+ * @param  {Array<Folder>} folders
+ *
+ * @return {Object}
+ */
+function exportData(folders) {
+    return {
+        folders: exportFolders(folders),
+        components: exportComponents(folders),
+    };
+}
+
+/**
+ * Export folder objects
+ *
+ * @param  {Array<Folder>} folders
+ *
+ * @return {Array<Object>}
+ */
+function exportFolders(folders) {
+    return _.map(folders, (folder) => {
+        return exportFolder(folder);
+    })
+}
+
+/**
+ * Export folder object
+ *
+ * @param  {Folder} folder
+ *
+ * @return {Object}
+ */
+function exportFolder(folder) {
+    return {
+        path: exportPath(folder.path),
+        children: _.map(folder.children, (child) => {
+            if (child instanceof Folder) {
+                return exportFolder(child);
+            } else {
+                return exportFile(child);
+            }
+        }),
+    };
+}
+
+/**
+ * Export file object
+ *
+ * @param  {File} file
+ * @param  {Function} exportPath
+ *
+ * @return {Object}
+ */
+function exportFile(file) {
+    return {
+        path: exportPath(file.path),
+        components: _.map(file.components, 'id'),
+    };
+}
+
+/**
+ * Export component descriptions
+ *
+ * @param  {Array<Folder>} folders
+ *
+ * @return {Array<Object>}
+ */
+function exportComponents(folders) {
     // get a list of all files
     var files = [];
     _.each(folders, (folder) => {
@@ -68,7 +223,7 @@ Promise.map(folderPaths, (folderPath) => {
     });
     files = _.sortBy(files, 'path');
 
-    // see what files are mapped to each component
+    // create a map connecting files to components
     var components = [];
     var componentFileLists = new WeakMap;
     _.each(files, (file) => {
@@ -83,16 +238,34 @@ Promise.map(folderPaths, (folderPath) => {
         });
     });
 
-    _.each(components, (component) => {
-        console.log(component.text.en);
-        console.log('----------------------------------------');
-        var files = componentFileLists.get(component);
-        _.each(files, (file) => {
-            console.log(file.path);
+    return _.map(components, (component) => {
+        var fileList = componentFileLists.get(component);
+        var object = {};
+        object.id = component.id;
+        object.text = component.text;
+        if (component.imageFile) {
+            object.image = exportPath(component.imageFile);
+        }
+        if (component.icon) {
+            object.icon = component.icon;
+        }
+        object.files = _.map(fileList, (file) => {
+            return exportPath(file.path);
         });
-        console.log('');
+        return object;
     });
-});
+}
+
+/**
+ * Return path relative to git root
+ *
+ * @param  {String} path
+ *
+ * @return {String}
+ */
+function exportPath(path) {
+    return Path.relative(selectedRootPath, path);
+}
 
 /**
  * Scan for files in a folder
@@ -102,22 +275,30 @@ Promise.map(folderPaths, (folderPath) => {
  * @return {Promise<Folder>}
  */
 function findFiles(folderPath) {
-    return scanFolder(folderPath).mapSeries((childPath) => {
-        return FS.lstatAsync(childPath).then((stats) => {
-            if (stats.isDirectory()) {
-                var name = Path.basename(childPath);
-                if (name !== '.git') {
-                    return findFiles(childPath);
+    // load .trambar contents for this folder
+    return loadTrambarFolders(folderPath).then((trambarFolders) => {
+        return scanFolder(folderPath).mapSeries((childPath) => {
+            return FS.lstatAsync(childPath).then((stats) => {
+                if (stats.isDirectory()) {
+                    var name = Path.basename(childPath);
+                    if (name !== '.git') {
+                        return findFiles(childPath);
+                    } else {
+                        return null;
+                    }
                 } else {
-                    return null;
+                    return Promise.map(trambarFolders, (trambarFolder) => {
+                        return findMatchingComponents(trambarFolder, childPath);
+                    }).then((componentLists) => {
+                        var components = _.flatten(componentLists);
+                        return new File(childPath, components);
+                    });
                 }
-            } else {
-                return new File(childPath);
-            }
+            });
+        }).then((children) => {
+            children = _.filter(children);
+            return new Folder(folderPath, children);
         });
-    }).then((children) => {
-        children = _.filter(children);
-        return new Folder(folderPath, children);
     });
 }
 
@@ -137,38 +318,7 @@ function collectFiles(folder, list) {
     });
 }
 
-/**
- * Attach component descriptions to files in folder
- *
- * @param  {Folder} folder
- *
- * @return {Promise}
- */
-function attachComponentsToFiles(folder) {
-    return Promise.each(folder.children, (child) => {
-        if (child instanceof Folder) {
-            return attachComponentsToFiles(child);
-        } else if (child instanceof File) {
-            return attachComponentsToFile(child);
-        }
-    });
-}
-
-/**
- * Attach component descriptions to a file
- *
- * @param  {File} file
- *
- * @return {Promise}
- */
-function attachComponentsToFile(file) {
-    var folderPath = Path.dirname(file.path);
-    return loadTrambarFolders(folderPath).map((trambarFolder) => {
-        return findMatchingComponents(trambarFolder, file);
-    }).then((componentLists) => {
-        file.components = _.flatten(componentLists);
-    });
-}
+var trambarFolderCache;
 
 /**
  * Load descriptions in a .trambar folder
@@ -178,6 +328,9 @@ function attachComponentsToFile(file) {
  * @return {Promise<TrambarFolder|null>}
  */
 function loadTrambarFolder(parentPath) {
+    if (!trambarFolderCache) {
+        trambarFolderCache = {};
+    }
     var promise = trambarFolderCache[parentPath];
     if (promise) {
         return promise;
@@ -207,7 +360,8 @@ function loadTrambarFolder(parentPath) {
             if (name) {
                 var component = _.find(components, { name });
                 if (!component) {
-                    component = new Component(name);
+                    var id = Path.relative(selectedRootPath, `${parentPath}/${name}`);
+                    component = new Component(name, id);
                     components.push(component);
                 }
                 if (textFile) {
@@ -280,8 +434,6 @@ function loadTrambarFolder(parentPath) {
     return promise;
 }
 
-var trambarFolderCache = {};
-
 /**
  * Clear cached .trambar folders
  *
@@ -303,7 +455,8 @@ function clearTrambarFolderCache(folderPath) {
  * @return {Promise<Array<TrambarFolder>>}
  */
 function loadTrambarFolders(targetFolderPath) {
-    return getFolderPaths(targetFolderPath).map((path) => {
+    var paths = getFolderPaths(targetFolderPath);
+    return Promise.map(paths, (path) => {
         return loadTrambarFolder(path);
     }).then((folders) => {
         return _.filter(folders);
@@ -315,13 +468,13 @@ function loadTrambarFolders(targetFolderPath) {
  * a file
  *
  * @param  {TrambarFolder} folder
- * @param  {File} file
+ * @param  {String} path
  *
  * @return {Array<Component>}
  */
-function findMatchingComponents(folder, file) {
+function findMatchingComponents(folder, path) {
     // relative to folder holding .trambar
-    var relPath = Path.relative(folder.path, file.path);
+    var relPath = Path.relative(folder.path, path);
     var relPathNoExt = relPath.replace(/\.\w*$/, '');
     var components = _.filter(folder.components, (component) => {
         if (component.matchRules) {
@@ -339,6 +492,8 @@ function findMatchingComponents(folder, file) {
     return components;
 }
 
+var gitignoreCache;
+
 /**
  * Load .gitignore
  *
@@ -347,6 +502,9 @@ function findMatchingComponents(folder, file) {
  * @return {Promise<Object>}
  */
 function loadGitIgnore(folderPath) {
+    if (!gitignoreCache) {
+        gitignoreCache = {};
+    }
     var promise = gitignoreCache[folderPath];
     if (promise) {
         return promise;
@@ -377,8 +535,6 @@ function loadGitIgnore(folderPath) {
     return promise;
 }
 
-var gitignoreCache = {};
-
 /**
  * Clear cached .ignore files
  *
@@ -401,7 +557,8 @@ function clearGitignoreCache(folderPath) {
  */
 function loadGitIgnoreSets(folderPath) {
     // get paths to parent folders (up to root of git working folder)
-    return getFolderPaths(folderPath).map((path) => {
+    var paths = getFolderPaths(folderPath);
+    return Promise.map(paths, (path) => {
         return loadGitIgnore(path);
     }).then((sets) => {
         return _.reverse(_.filter(sets));
@@ -414,35 +571,47 @@ function loadGitIgnoreSets(folderPath) {
  *
  * @param  {String} folderPath
  *
- * @return {Promise<Array<String>>}
+ * @return {Array<String>}
  */
 function getFolderPaths(folderPath) {
-    var path = Path.resolve(folderPath);
+    var path = folderPath;
     var paths = [];
     do {
         paths.push(path);
+        var parentPath = Path.dirname(path);
+        if (path !== parentPath && path !== selectedRootPath) {
+            path = parentPath;
+        } else {
+            path = null;
+        }
+    } while (path);
+    return paths;
+}
+
+/**
+ * Return git folder that the given folder is contained in
+ *
+ * @param  {String} folderPath
+ *
+ * @return {String|null}
+ */
+function findGitFolder(folderPath) {
+    var path = folderPath;
+    do {
+        if (FS.existsSync(`${path}/.git`)) {
+            return path;
+        }
         var parentPath = Path.dirname(path);
         if (path !== parentPath) {
             path = parentPath;
         } else {
             path = null;
         }
-    } while (path);
-
-    // find working folder root
-    return Promise.reduce(paths, (newList, path, index) => {
-        if (newList !== paths) {
-            return newList;
-        }
-        // see if folder contains .git
-        return FS.lstatAsync(`${path}/.git`).then(() => {
-            // don't need the ones after index
-            return _.slice(paths, 0, index + 1);
-        }).catch((err) => {
-            return paths;
-        });
-    }, paths);
+    } while (path)
+    return null;
 }
+
+var folderCache;
 
 /**
  * Scan a folder, taking into account rules in .gitignore files
@@ -452,42 +621,29 @@ function getFolderPaths(folderPath) {
  * @return {Promise<Array<String>>}
  */
 function scanFolder(folderPath) {
-    var path = Path.resolve(folderPath);
-    var promise = folderCache[path];
+    if (!folderCache) {
+        folderCache = {};
+    }
+    var promise = folderCache[folderPath];
     if (promise) {
         return promise;
     }
     // load .gitignore files
-    promise = loadGitIgnoreSets(path).then((ignoreSets) => {
+    promise = loadGitIgnoreSets(folderPath).then((ignoreSets) => {
         // scan folder
-        return FS.readdirAsync(path).catch((err) => {
+        return FS.readdirAsync(folderPath).catch((err) => {
             return [];
         }).map((childName) => {
             return Path.join(folderPath, childName);
         }).filter((childPath) => {
-            // check if file ought to be ignored
-            var ignore = false;
-            _.each(ignoreSets, (set) => {
-                // relative to folder containing the particular .gitignore
-                var relPath = Path.relative(set.path, childPath);
-                if (set.scanner.ignores(relPath)) {
-                    ignore = true;
-                } else if (ignore) {
-                    // see if a deeper-level .gitignore is overriding rules
-                    // imposed further up
-                    if (set.scanner.unignores(relPath)) {
-                        ignore = false;
-                    }
-                }
-            });
-            return !ignore;
+            return !shouldIgnore(childPath, ignoreSets);
         });
     });
-    folderCache[path] = promise;
+    folderCache[folderPath] = promise;
     return promise;
 }
 
-var folderCache = {};
+var folderCache;
 
 /**
  * Clear folder cache
@@ -503,14 +659,29 @@ function clearFolderCache(folderPath) {
 }
 
 /**
- * Clear cache contents
+ * Return true if file should be ignored according to .gitignore
  *
- * @param  {String} folderPath
+ * @param  {String} path
+ * @param  {Array<Object>} ignoreSets
+ *
+ * @return {Boolean}
  */
-function clearCache(folderPath) {
-    clearFolderCache(folderPath);
-    clearGitignoreCache(folderPath);
-    clearTrambarFolderCache(folderPath);
+function shouldIgnore(path, ignoreSets) {
+    var ignore = false;
+    _.each(ignoreSets, (set) => {
+        // relative to folder containing the particular .gitignore
+        var relPath = Path.relative(set.path, path);
+        if (set.scanner.ignores(relPath)) {
+            ignore = true;
+        } else if (ignore) {
+            // see if a deeper-level .gitignore is overriding rules
+            // imposed further up
+            if (set.scanner.unignores(relPath)) {
+                ignore = false;
+            }
+        }
+    });
+    return ignore;
 }
 
 /**
@@ -531,13 +702,35 @@ function omitFolder(cache, folderPath) {
     });
 }
 
+/**
+ * Check if a file should be ignored synchronously, using data
+ * from gitignoreCache
+ *
+ * @param  {String} filePath
+ *
+ * @return {Boolean}
+ */
+function shouldIgnoreSync(filePath) {
+    var folderPath = Path.dirname(filePath);
+    var paths = getFolderPaths(folderPath);
+    var ignoreSets = _.map(paths, (path) => {
+        var promise = gitignoreCache[path];
+        if (promise) {
+            return promise.value();
+        }
+    });
+    ignoreSets = _.reverse(_.filter(ignoreSets));
+    return shouldIgnore(filePath, ignoreSets);
+}
+
 function TrambarFolder(path, components) {
     this.path = path;
     this.components = components;
 }
 
-function Component(name) {
+function Component(name, id) {
     this.name = name;
+    this.id = id;
     this.textFile = {};
     this.text = {};
     this.imageFile = null;
@@ -552,7 +745,7 @@ function Folder(path, children) {
     this.children = children;
 }
 
-function File(path) {
+function File(path, components) {
     this.path = path;
-    this.component = null;
+    this.components = components;
 }
