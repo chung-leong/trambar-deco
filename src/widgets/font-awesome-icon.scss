@@ -1,0 +1,16 @@
+.font-awesome-icon {
+    display: inline-block;
+    position: relative;
+    padding: 0.2em 0.2em 0.2em 0.2em;
+    border: 1ps solid #666666;
+    background-color: rgba(0,0,0,0.1);
+    color: #eeeeee;
+    font-size: 2em;
+    margin: 0.1em 0.1em 0.1em 0.1em;
+    cursor: pointer;
+
+    &.selected {
+        color: #000000;
+        background-color: #fca326;
+    }
+}

@@ -32,7 +32,9 @@
     "node-sass": "^4.5.3",
     "react": "~15.4.0",
     "react-dom": "~15.4.0",
+    "react-masonry-component": "^5.0.7",
     "sass-loader": "^6.0.5",
+    "sockjs-client": "^1.1.4",
     "style-loader": "^0.17.0",
     "url-loader": "^0.5.8",
     "webpack": "^2.5.1",
@@ -47,6 +49,7 @@
     "express": "^4.15.4",
     "ignore": "^3.3.5",
     "lodash": "^4.17.4",
+    "open": "0.0.5",
     "sockjs": "^0.3.18"
   }
 }

@@ -1,0 +1,62 @@
+.app-component {
+    display: inline-block;
+    max-width: 30em;
+    padding: 0.5em 0.5em 0.5em 0.5em;
+    border: 1px solid #666666;
+
+    .description {
+        display: flex;
+        flex-direction: row;
+        border: 1px solid #000000;
+        margin-bottom: 0.5em;
+
+        .picture {
+            flex-grow: 0;
+            flex-shrink: 0;
+
+            .icon {
+                display: inline-block;
+                color: #000000;
+                background-color: #fca326;
+                height: 4em;
+                width: 4em;
+                padding-top: 1em;
+                text-align: center;
+
+                .fa {
+                    font-size: 2em;
+                }
+            }
+
+            IMG {
+                width: auto;
+                height: 4em;
+            }
+        }
+
+        .text {
+            flex-grow: 1;
+            flex-shrink: 1;
+            height: 4em;
+            overflow: hidden;
+            padding: 0em 0.2em 0.1em 0.2em;
+
+            H1, H2, H3, H4, H5 {
+                font-size: 1em;
+                margin-top: 0;
+                margin-bottom: 0.2em;
+            }
+
+            P {
+                margin-top: 0;
+            }
+        }
+    }
+
+    .file-list {
+        max-height: 8em;
+        overflow-y: auto;
+        border: 1px solid #333333;
+        padding: 0.5em 0.5em 0.5em 0.5em;
+    }
+}

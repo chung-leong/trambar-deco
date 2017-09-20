@@ -6,6 +6,7 @@ var FS = Promise.promisifyAll(require('fs'));
 var Path = require('path');
 var CommandLineArgs = require('command-line-args');
 var CommandLineUsage = require('command-line-usage');
+var Open = require('open');
 var Ignore = require('ignore');
 var Chokidar = require('chokidar');
 var Express = require('express');
@@ -19,8 +20,14 @@ var optionDefinitions = [
         defaultOption: true,
     },
     {
-        name: 'watch',
-        type: Boolean
+        name: 'no-watch',
+        type: Boolean,
+        description: 'Do not monitor folders for changes',
+    },
+    {
+        name: 'no-shutdown',
+        type: Boolean,
+        description: 'Do not exit script when browser window closes'
     },
     {
         name: 'json',
@@ -47,11 +54,16 @@ var scriptDescription = [
     }
 ];
 
-var options = CommandLineArgs(optionDefinitions);
-if (options.help) {
-    var usage = CommandLineUsage(scriptDescription);
-    console.log(usage);
-    process.exit(0);
+try {
+    var options = CommandLineArgs(optionDefinitions);
+    if (options.help) {
+        var usage = CommandLineUsage(scriptDescription);
+        console.log(usage);
+        process.exit(0);
+    }
+} catch(err) {
+    console.log(err.message);
+    process.exit(-1);
 }
 
 var port = parseInt(options.port) || 8118;
@@ -115,22 +127,51 @@ if (options.json) {
 
     // add websocket handling
     var sockJS = SockJS.createServer({
-        sockjs_url: 'http://cdn.jsdelivr.net/sockjs/1.1.2/sockjs.min.js'
+        sockjs_url: 'http://cdn.jsdelivr.net/sockjs/1.1.2/sockjs.min.js',
+        log: () => {},
     });
     var sockets = [];
     sockJS.on('connection', (socket) => {
         sockets.push(socket);
         socket.on('close', () => {
             _.pull(sockets, socket);
+            if (!options['no-shutdown']) {
+                if (sockets.length === 0) {
+                    beginAutomaticShutdown();
+                }
+            }
         });
+        stopAutomaticShutdown();
     });
     sockJS.installHandlers(server, { prefix:'/socket' });
 
+    Open(`http://localhost:${port}/`);
+
+    function sendChangeNotification() {
+        _.each(sockets, (socket) => {
+            socket.write('change');
+        });
+    }
+
+    var shutdownTimeout;
+
+    function stopAutomaticShutdown() {
+        clearTimeout(shutdownTimeout);
+    }
+
+    function beginAutomaticShutdown() {
+        shutdownTimeout = setTimeout(() => {
+            process.exit(0);
+        }, 1000);
+    }
+
     // do a scan to populate the .gitignore cache, then
     // start watching the source folders for changes
-    findFilesInSelectedfolders().then((folders) => {
-        startFileWatch();
-    });
+    if (!options['no-watch']) {
+        findFilesInSelectedfolders().then((folders) => {
+            startFileWatch();
+        });
+    }
 
     var watcher;
 
@@ -147,15 +188,18 @@ if (options.json) {
             invalidateFolderlisting(path);
             invalidateTrambarFolder(path);
             invalidateGitIgnore(path);
+            sendChangeNotification();
         });
         watcher.on('change', (path) => {
             invalidateTrambarFolder(path);
             invalidateGitIgnore(path);
+            sendChangeNotification();
         });
         watcher.on('unlink', (path) => {
             invalidateFolderlisting(path);
             invalidateTrambarFolder(path);
             invalidateGitIgnore(path);
+            sendChangeNotification();
         });
     }
 
@@ -235,8 +279,8 @@ function findFilesInSelectedfolders() {
  */
 function exportData(folders) {
     return {
-        folders: exportFolders(folders),
         components: exportComponents(folders),
+        folders: exportFolders(folders),
     };
 }
 
@@ -775,7 +819,9 @@ function shouldIgnore(path, ignoreSets) {
 function omitFolder(cache, folderPath) {
     return _.omitBy(cache, (value, path) => {
         if (path.indexOf(folderPath) === 0) {
-            if (path.charAt(folderPath.length) === '/') {
+            if (path.length === folderPath.length) {
+                return true;
+            } else if (path.charAt(folderPath.length) === '/') {
                 return true;
             }
         }
