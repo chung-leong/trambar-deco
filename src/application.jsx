@@ -6,6 +6,8 @@ var Masonry = require('react-masonry-component');
 
 // widgets
 var AppComponent = require('widgets/app-component');
+var AppComponentDialogBox = require('widgets/app-component-dialog-box');
+var TreeNodeFolder = require('widgets/tree-node-folder');
 var FontAwesomeIcon = require('widgets/font-awesome-icon');
 var FontAwesomeDialogBox = require('widgets/font-awesome-dialog-box');
 
@@ -22,9 +24,10 @@ module.exports = React.createClass({
      */
     getInitialState: function() {
         return {
-            view: 'components',
+            view: this.getViewFromHash(),
             data: {},
             selectedIcon: '',
+            selectedComponentId: '',
             showingDialog: false,
         };
     },
@@ -97,18 +100,21 @@ module.exports = React.createClass({
             icon: 'cubes',
             selected: (this.state.view === 'components'),
             title: 'Components',
+            url: '#components',
             onClick: this.handleComponentsButtonClick,
         };
         var sourceTreeProps = {
             icon: 'files-o',
             selected: (this.state.view === 'source-tree'),
             title: 'Source tree',
+            url: '#source-tree',
             onClick: this.handleSourceTreeButtonClick,
         };
         var iconsProps = {
             icon: 'flag',
             selected: (this.state.view === 'icons'),
             title: 'Font Awesome icons',
+            url: '#icons',
             onClick: this.handleIconsButtonClick,
         };
         return (
@@ -143,11 +149,18 @@ module.exports = React.createClass({
         var options = {
             transitionDuration: 0
         };
+        var selectedComponent = _.find(components, { id: this.state.selectedComponentId });
+        var dialogProps = {
+            show: this.state.showingDialog,
+            component: selectedComponent,
+            onClose: this.handleDialogClose,
+        };
         return (
-            <div className="contents">
+            <div className="page-view-port">
                 <Masonry options={options}>
                     {_.map(components, this.renderComponent)}
                 </Masonry>
+                <AppComponentDialogBox {...dialogProps} />
             </div>
         );
     },
@@ -164,6 +177,7 @@ module.exports = React.createClass({
         var props = {
             key: index,
             component,
+            onSelect: this.handleComponentSelect,
         };
         return <AppComponent {...props} />;
     },
@@ -174,11 +188,37 @@ module.exports = React.createClass({
      * @return {ReactElement}
      */
     renderSourceTree: function() {
+        var components = this.state.data.components;
+        var folders = this.state.data.folders;
+        var selectedComponent = _.find(components, { id: this.state.selectedComponentId });
+        var dialogProps = {
+            show: this.state.showingDialog,
+            component: selectedComponent,
+            onClose: this.handleDialogClose,
+        };
         return (
-            <div className="contents">
-                <h1>Source Tree</h1>
+            <div className="page-view-port">
+                {_.map(folders, this.renderSourceTreeFolder)}
+                <AppComponentDialogBox {...dialogProps} />
             </div>
         );
+    },
+
+    /**
+     * Render source tree folder node
+     *
+     * @param  {Object} folder
+     * @param  {Number} index
+     *
+     * @return {ReactElement}
+     */
+    renderSourceTreeFolder: function(folder, index) {
+        var props = {
+            key: index,
+            folder,
+            onSelect: this.handleComponentSelect,
+        };
+        return <TreeNodeFolder {...props} />;
     },
 
     /**
@@ -194,7 +234,7 @@ module.exports = React.createClass({
             onClose: this.handleDialogClose,
         };
         return (
-            <div className="contents">
+            <div className="page-view-port">
                 {_.map(classNames, this.renderIcon)}
                 <FontAwesomeDialogBox {...dialogProps} />
             </div>
@@ -220,12 +260,50 @@ module.exports = React.createClass({
     },
 
     /**
+     * Add event handler on mount
+     */
+    componentDidMount: function() {
+        window.addEventListener('popstate', this.handlePopState);
+    },
+
+    /**
+     * Get current view from URL hash
+     *
+     * @return {String}
+     */
+    getViewFromHash: function() {
+        switch (location.hash) {
+            case '#icons': return 'icons';
+            case '#source-tree': return 'source-tree';
+            case '#components':
+            default: return 'components';
+        }
+    },
+
+    /**
+     * Change the view
+     *
+     * @param  {String} name
+     */
+    setView: function(view) {
+        this.setState({ view }, () => {
+            history.pushState({}, '', '#' + view);
+        });
+    },
+
+    handlePopState: function() {
+        var view = this.getViewFromHash();
+        this.setState({ view });
+    },
+
+    /**
      * Called when user clicks components button
      *
      * @param  {Event} evt
      */
     handleComponentsButtonClick: function(evt) {
-        this.setState({ view: 'components' });
+        this.setView('components');
+        evt.preventDefault();
     },
 
     /**
@@ -234,7 +312,8 @@ module.exports = React.createClass({
      * @param  {Event} evt
      */
     handleSourceTreeButtonClick: function(evt) {
-        this.setState({ view: 'source-tree' });
+        this.setView('source-tree');
+        evt.preventDefault();
     },
 
     /**
@@ -243,11 +322,26 @@ module.exports = React.createClass({
      * @param  {Event} evt
      */
     handleIconsButtonClick: function(evt) {
-        this.setState({ view: 'icons' });
+        this.setView('icons');
+        evt.preventDefault();
+    },
+
+    /**
+     * Called when user selects a component
+     *
+     * @param  {Object} evt
+     */
+    handleComponentSelect: function(evt) {
+        this.setState({
+            showingDialog: true,
+            selectedComponentId: evt.id,
+        });
     },
 
     /**
      * Called when user selects an icon
+     *
+     * @param  {Object} evt
      */
     handleIconSelect: function(evt) {
         this.setState({
@@ -274,10 +368,11 @@ function SideButton(props) {
         className: 'button' + (props.selected ? ' selected' : ''),
         title: props.title,
         onClick: props.onClick,
+        href: props.url,
     };
     return (
-        <div {...buttonProps}>
+        <a {...buttonProps}>
             <i className={`fa fa-${props.icon} fa-fw`} />
-        </div>
+        </a>
     );
 }

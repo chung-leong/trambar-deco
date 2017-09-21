@@ -2,6 +2,8 @@ var _ = require('lodash');
 var Path = require('path');
 var Webpack = require('webpack');
 var HtmlWebpackPlugin = require('html-webpack-plugin');
+var DefinePlugin = Webpack.DefinePlugin;
+var UglifyJSPlugin = require('uglifyjs-webpack-plugin');
 
 module.exports = {
     context: Path.resolve('./src'),
@@ -66,3 +68,20 @@ module.exports = {
         }),
     ],
 };
+
+var event = process.env.npm_lifecycle_event;
+
+var constants = {};
+if (event === 'build') {
+    console.log('Optimizing JS code');
+
+    // set NODE_ENV to production
+    var plugins = module.exports.plugins;
+    var constants = {
+        'process.env.NODE_ENV': '"production"'
+    };
+    plugins.unshift(new DefinePlugin(constants));
+
+    // use Uglify to remove dead-code
+    plugins.unshift(new UglifyJSPlugin());
+}

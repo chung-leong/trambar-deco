@@ -12,6 +12,7 @@
         border: 1px solid #211a1a;
         margin-bottom: 0.5em;
         background-color: #cccccc;
+        cursor: pointer;
 
         .picture {
             flex-grow: 0;
@@ -78,5 +79,9 @@
         border: 1px solid #211a1a;
         background-color: #999999;
         padding: 0.5em 0.5em 0.5em 0.5em;
+
+        .tree-node-file {
+            color: #000000;
+        }
     }
 }

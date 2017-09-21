@@ -11,7 +11,7 @@ module.exports = React.createClass({
     displayName: 'FontAwesomeDialogBox',
     propTypes: {
         show: PropTypes.bool,
-
+        iconClassName: PropTypes.string,
         onClose: PropTypes.func,
     },
 
@@ -33,6 +33,9 @@ module.exports = React.createClass({
      * @return {ReactElement}
      */
     render: function() {
+        if (!this.props.iconClassName) {
+            return null;
+        }
         var overlayProps = {
             show: this.props.show,
             onBackgroundClick: this.props.onClose,

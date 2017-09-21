@@ -1,7 +1,8 @@
 var _ = require('lodash');
-var Promise = require('bluebird');
 var React = require('react'), PropTypes = React.PropTypes;
 var MarkGor = require('mark-gor/react');
+
+var TreeNodeFile = require('widgets/tree-node-file');
 
 require('./app-component.scss');
 
@@ -33,7 +34,7 @@ module.exports = React.createClass({
      */
     renderDescription: function() {
         return (
-            <div className="description">
+            <div className="description" onClick={this.handleClick}>
                 {this.renderPicture()}
                 {this.renderText()}
             </div>
@@ -112,13 +113,25 @@ module.exports = React.createClass({
      * @return {ReactElement}
      */
     renderAssociatedFile: function(file, index) {
-        var icon = '';
-        return (
-            <div className="file" key={index}>
-                {icon}
-                {' '}
-                {file}
-            </div>
-        );
+        var props = {
+            key: index,
+            file,
+        };
+        return <TreeNodeFile {...props} />;
+    },
+
+    /**
+     * Called when user clicks on component description
+     *
+     * @param  {Event} evt
+     */
+    handleClick: function(evt) {
+        if (this.props.onSelect) {
+            this.props.onSelect({
+                type: 'select',
+                target: this,
+                id: this.props.component.id,
+            });
+        }
     },
 });

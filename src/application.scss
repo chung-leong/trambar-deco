@@ -31,12 +31,17 @@ body {
     border-right: 1px solid #323232;
 
     .button {
+        display: block;
         font-size: 1.5em;
         padding: 0.25em 0.25em 0.25em 0.25em;
         text-align: center;
         margin-bottom: 0.5em;
         color: #999999;
         cursor: pointer;
+
+        &:link, &:visited {
+            text-decoration: none;
+        }
 
         &.selected {
             color: #ffffff;
@@ -48,7 +53,7 @@ body {
     }
 }
 
-.contents {
+.page-view-port {
     flex-grow: 1;
     flex-shrink: 1;
     background-color: #4d3936;

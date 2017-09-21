@@ -311,7 +311,7 @@ function exportFolder(folder) {
             if (child instanceof Folder) {
                 return exportFolder(child);
             } else {
-                return exportFile(child);
+                return exportFile(child, true);
             }
         }),
     };
@@ -321,15 +321,19 @@ function exportFolder(folder) {
  * Export file object
  *
  * @param  {File} file
- * @param  {Function} exportPath
+ * @param  {Boolean} includeComponents
  *
  * @return {Object}
  */
-function exportFile(file) {
-    return {
+function exportFile(file, includeComponents) {
+    var object = {
         path: exportPath(file.path),
-        components: _.map(file.components, 'id'),
+        text: file.text,
     };
+    if (includeComponents && !_.isEmpty(file.components)) {
+        object.components = _.map(file.components, 'id');
+    }
+    return object;
 }
 
 /**
@@ -374,7 +378,7 @@ function exportComponents(folders) {
             object.icon = component.icon;
         }
         object.files = _.map(fileList, (file) => {
-            return exportPath(file.path);
+            return exportFile(file, false);
         });
         return object;
     });
@@ -415,7 +419,9 @@ function findFiles(folderPath) {
                         return findMatchingComponents(trambarFolder, childPath);
                     }).then((componentLists) => {
                         var components = _.flatten(componentLists);
-                        return new File(childPath, components);
+                        return isTextFile(childPath).then((text) => {
+                            return new File(childPath, text, components);
+                        });
                     });
                 }
             });
@@ -849,6 +855,33 @@ function shouldIgnoreSync(filePath) {
     return shouldIgnore(filePath, ignoreSets);
 }
 
+/**
+ * Check if a file contains text
+ *
+ * @param  {String} path
+ *
+ * @return {Promise<Boolean>}
+ */
+function isTextFile(path) {
+    return FS.openAsync(path, 'r').then((fd) => {
+        var buffer = new Buffer(1024);
+        return FS.readAsync(fd, buffer, 0, buffer.length, 0).then((len) => {
+            var bytes = new Uint8Array(buffer);
+            for (var i = 0; i < len; i++) {
+                if (bytes[i] === 0) {
+                    return false;
+                }
+            }
+            return true;
+        }).finally(() => {
+            return FS.closeAsync(fd);
+        });
+    }).catch((err) => {
+        console.log(err.message);
+        return false;
+    });
+}
+
 function TrambarFolder(path, components) {
     this.path = path;
     this.components = components;
@@ -871,7 +904,8 @@ function Folder(path, children) {
     this.children = children;
 }
 
-function File(path, components) {
+function File(path, text, components) {
     this.path = path;
+    this.text = text;
     this.components = components;
 }
