@@ -13,4 +13,14 @@
         color: #000000;
         background-color: #fca326;
     }
+
+    .label {
+        width: 4.2em;
+        color: #999999;
+        font-size: 0.3em;
+        text-align: center;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
+    }
 }

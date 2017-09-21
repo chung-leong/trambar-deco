@@ -57,17 +57,14 @@ module.exports = React.createClass({
         } else {
             var icon = component.icon || {};
             var iconClassName = icon['class'] || 'fa-cubes';
-            var iconProps = {
-                className: `fa fa-fw ${iconClassName}`,
-                style: {
-                    color: icon.color,
-                    backgroundColor: icon.backgroundColor,
-                },
+            var style = {
+                color: icon['color'],
+                backgroundColor: icon['background-color'],
             };
             return (
                 <div className="picture">
-                    <div className="icon">
-                        <i {...iconProps} />
+                    <div className="icon" style={style}>
+                        <i className={`fa fa-fw ${iconClassName}`} />
                     </div>
                 </div>
             );
@@ -82,7 +79,14 @@ module.exports = React.createClass({
     renderText: function() {
         var text = this.props.component.text.en;
         var elements = MarkGor.parse(text);
-        return <div className="text">{elements}</div>;
+        return (
+            <div className="text">
+                <div className="text-contents">
+                    {elements}
+                    <div className="ellipsis">...</div>
+                </div>
+            </div>
+        );
     },
 
     /**

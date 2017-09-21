@@ -8,7 +8,7 @@ module.exports = React.createClass({
     displayName: 'FontAwesomeIcon',
     propTypes: {
         className: PropTypes.string.isRequired,
-        selected: PropTypes.Boolean,
+        selected: PropTypes.bool,
 
         onSelect: PropTypes.func,
     },
@@ -20,10 +20,11 @@ module.exports = React.createClass({
                 _.each(styleSheet.rules, (rule) => {
                     if (rule.style && rule.style.content) {
                         var selector = rule.selectorText;
-                        var m = /^\.(fa-\S+)::before$/.exec(selector);
-                        if (m) {
-                            classNames.push(m[1]);
-                        }
+                        var matches = selector.match(/\.(fa-\S+)::before/g);
+                        _.each(matches, (match) => {
+                            var className = match.slice(1, -8);
+                            classNames.push(className);
+                        });
                     }
                 });
             });
@@ -36,9 +37,12 @@ module.exports = React.createClass({
         if (this.props.selected) {
             className += ' selected';
         }
+        var iconClassName = this.props.className;
+        var label = iconClassName.substr(3);
         return (
-            <div className={className} onClick={this.handleClick}>
-                <i className={`fa ${this.props.className} fa-fw`} />
+            <div className={className} onClick={this.handleClick} title={label}>
+                <i className={`fa ${iconClassName} fa-fw`}/>
+                <div className="label">{label}</div>
             </div>
         );
     },

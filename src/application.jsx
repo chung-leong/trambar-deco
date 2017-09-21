@@ -2,6 +2,7 @@ var _ = require('lodash');
 var Promise = require('bluebird');
 var React = require('react'), PropTypes = React.PropTypes;
 var SockJS = require('sockjs-client');
+var Masonry = require('react-masonry-component');
 
 // widgets
 var AppComponent = require('widgets/app-component');
@@ -139,9 +140,14 @@ module.exports = React.createClass({
      */
     renderComponents: function() {
         var components = this.state.data.components;
+        var options = {
+            transitionDuration: 0
+        };
         return (
             <div className="contents">
-                {_.map(components, this.renderComponent)}
+                <Masonry options={options}>
+                    {_.map(components, this.renderComponent)}
+                </Masonry>
             </div>
         );
     },
@@ -156,6 +162,7 @@ module.exports = React.createClass({
      */
     renderComponent: function(component, index) {
         var props = {
+            key: index,
             component,
         };
         return <AppComponent {...props} />;
