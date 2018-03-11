@@ -1,10 +1,11 @@
 .app-component {
-    display: inline-block;
-    width: 30em;
     padding: 0.5em 0.5em 0.5em 0.5em;
     border: 2px solid #211a1a;
     background-color: #362a2a;
-    margin: 0.5em 0.5em 0.5em 0.5em;
+    width: 100%;
+    break-inside: avoid-column;
+    page-break-inside: avoid;
+    margin-bottom: 1em;
 
     .description {
         display: flex;
@@ -45,7 +46,7 @@
             font-size: 1em;
             margin: 0.25em 0.25em 0 0.40em;
             overflow: hidden;
-            height: calc(3em + 8px);
+            height: calc(3em + 10px);
 
             .text-contents {
                 width: calc(100% - 1em);
@@ -56,8 +57,9 @@
                 .ellipsis {
                     position: absolute;
                     right: -1em;
-                    top: calc(6em + 6px - 100%);
+                    top: calc(7em - 100%);
                     text-align: left;
+                    vertical-align: bottom;
                 }
 
                 H1, H2, H3, H4, H5 {

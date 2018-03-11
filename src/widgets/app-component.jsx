@@ -84,7 +84,9 @@ module.exports = React.createClass({
             <div className="text">
                 <div className="text-contents">
                     {elements}
-                    <div className="ellipsis">...</div>
+                    <div className="ellipsis">
+                        <i className="fa fa-ellipsis-h" />
+                    </div>
                 </div>
             </div>
         );

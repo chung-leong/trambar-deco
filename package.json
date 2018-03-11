@@ -2,7 +2,7 @@
   "name": "trambar-deco",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "bin": "bin/index.js",
   "scripts": {
     "watch": "webpack --watch",
     "build": "webpack",
@@ -10,11 +10,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@bitbucket.org/chung_leong/trambar-deco.git"
+    "url": "git@github.com:chung-leong/trambar-deco.git"
   },
   "author": "Chung Leong",
   "license": "MIT",
-  "homepage": "https://bitbucket.org/chung_leong/trambar-deco#readme",
+  "homepage": "https://github.com/chung-leong/trambar-deco",
   "devDependencies": {
     "babel-core": "^6.24.1",
     "babel-loader": "^7.0.0",
@@ -32,7 +32,6 @@
     "node-sass": "^4.5.3",
     "react": "~15.4.0",
     "react-dom": "~15.4.0",
-    "react-masonry-component": "^5.0.7",
     "sass-loader": "^6.0.5",
     "sockjs-client": "^1.1.4",
     "style-loader": "^0.17.0",

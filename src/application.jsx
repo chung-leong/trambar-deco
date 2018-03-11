@@ -145,10 +145,9 @@ module.exports = React.createClass({
      * @return {ReactElement}
      */
     renderComponents: function() {
-        var components = this.state.data.components;
-        var options = {
-            transitionDuration: 0
-        };
+        var components = _.sortBy(this.state.data.components, (component) => {
+            return _.toLower(component.text.en);
+        });
         var selectedComponent = _.find(components, { id: this.state.selectedComponentId });
         var dialogProps = {
             show: this.state.showingDialog,
@@ -157,9 +156,9 @@ module.exports = React.createClass({
         };
         return (
             <div className="page-view-port">
-                <Masonry options={options}>
+                <div className="components">
                     {_.map(components, this.renderComponent)}
-                </Masonry>
+                </div>
                 <AppComponentDialogBox {...dialogProps} />
             </div>
         );
