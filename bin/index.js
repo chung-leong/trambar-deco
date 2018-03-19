@@ -31,8 +31,15 @@ var optionDefinitions = [
     },
     {
         name: 'json',
+        alias: 'j',
         type: Boolean,
         description: 'Output component information in JSON format',
+    },
+    {
+        name: 'port',
+        alias: 'p',
+        type: Number,
+        description: 'Port number to use (default = 8118)',
     },
     {
         name: 'help',
