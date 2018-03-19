@@ -79,7 +79,7 @@ module.exports = React.createClass({
      */
     renderText: function() {
         var text = this.props.component.text.en;
-        var elements = MarkGor.parse(text);
+        var elements = MarkGor.parse(text || '');
         return (
             <div className="text">
                 <div className="text-contents">

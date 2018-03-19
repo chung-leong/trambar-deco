@@ -83,5 +83,11 @@ if (event === 'build') {
     plugins.unshift(new DefinePlugin(constants));
 
     // use Uglify to remove dead-code
-    plugins.unshift(new UglifyJSPlugin());
+    plugins.unshift(new UglifyJSPlugin({
+        uglifyOptions: {
+            compress: {
+              drop_console: true,
+            }
+        }
+    }));
 }

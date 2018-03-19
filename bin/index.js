@@ -218,7 +218,6 @@ if (options.json) {
     function invalidateFolderlisting(path) {
         var folderPath = Path.dirname(path);
         clearFolderCache(folderPath);
-        console.log('Clearing listing: ' + folderPath);
     }
 
     /**
@@ -232,7 +231,6 @@ if (options.json) {
         if (folderName === '.trambar') {
             var targetFolderPath = Path.dirname(folderPath);
             clearTrambarFolderCache(targetFolderPath);
-            console.log('Clearing .trambar: ' + targetFolderPath);
         }
     }
 
@@ -246,7 +244,6 @@ if (options.json) {
         var fileName = Path.basename(path);
         if (fileName === '.gitignore') {
             clearGitignoreCache(folderPath);
-            console.log('Clearing .gitignore: ' + folderPath);
 
             findFilesInSelectedfolders().then((folders) => {
                 restartFileWatch();
@@ -850,6 +847,12 @@ function omitFolder(cache, folderPath) {
  * @return {Boolean}
  */
 function shouldIgnoreSync(filePath) {
+    var name = Path.basename(filePath);
+    if (name.charAt(0) === '.') {
+        if (name !== '.trambar') {
+            return true;
+        }
+    }
     var folderPath = Path.dirname(filePath);
     var paths = getFolderPaths(folderPath);
     var ignoreSets = _.map(paths, (path) => {
