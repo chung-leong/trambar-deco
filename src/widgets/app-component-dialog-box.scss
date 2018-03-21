@@ -53,6 +53,10 @@
             P:first-child {
                 margin-top: 0.1em;
             }
+
+            &.missing-language {
+                opacity: 0.25;
+            }
         }
 
         &::-webkit-scrollbar-track {

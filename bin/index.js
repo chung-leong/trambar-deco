@@ -152,7 +152,7 @@ if (options.json) {
     function beginAutomaticShutdown() {
         shutdownTimeout = setTimeout(() => {
             process.exit(0);
-        }, 1000);
+        }, 2000);
     }
 
     // do a scan to populate the .gitignore cache, then

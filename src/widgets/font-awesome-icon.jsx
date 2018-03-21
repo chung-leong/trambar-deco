@@ -15,20 +15,25 @@ module.exports = React.createClass({
 
     statics: {
         getClassNames: function() {
-            var classNames = [];
+            var classes = [];
             _.each(document.styleSheets, (styleSheet) => {
                 _.each(styleSheet.rules, (rule) => {
-                    if (rule.style && rule.style.content) {
-                        var selector = rule.selectorText;
-                        var matches = selector.match(/\.(fa-\S+)::before/g);
-                        _.each(matches, (match) => {
-                            var className = match.slice(1, -8);
-                            classNames.push(className);
-                        });
+                    if (rule.style) {
+                        // don't add a class if the character employed for the
+                        // icon is already there
+                        var text = rule.style.content;
+                        if (text && !_.some(classes, { text })) {
+                            var selector = rule.selectorText;
+                            var matches = selector.match(/\.(fa-\S+)::before/g);
+                            var first = _.first(_.sortBy(matches, 'length'));
+                            var className = first.slice(1, -8);
+                            classes.push({ className, text })
+                        }
                     }
                 });
             });
-            return classNames;
+            classes = _.sortBy(classes, 'text');
+            return _.map(classes, 'className');
         }
     },
 

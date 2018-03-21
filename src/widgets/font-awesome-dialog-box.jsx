@@ -58,12 +58,11 @@ module.exports = React.createClass({
     renderForm: function() {
         var color = this.state.color;
         var backgroundColor = this.state.backgroundColor;
-        var definition = [
-            `class: ${this.props.iconClassName};`,
-            `color: ${color};`,
-            `background-color: ${backgroundColor};`,
-            ``,
-        ].join('\n');
+        var url = `fa://${this.props.iconClassName}/${backgroundColor}`;
+        if (color !== '#000000') {
+            url += `/${color}`;
+        }
+        var urlRef = (node) => { this.urlInput = node };
         return (
             <div className="form">
                 {this.renderIcon()}
@@ -76,8 +75,8 @@ module.exports = React.createClass({
                     <input type="color" value={backgroundColor} onChange={this.handleBackgroundColorChange} />
                 </div>
                 <div className="input">
-                    <label>Definition</label>
-                    <textarea ref="def" value={definition} readOnly={true} />
+                    <label>URL</label>
+                    <input type="text" ref={urlRef} value={url} readOnly={true} />
                 </div>
             </div>
         );
@@ -146,10 +145,15 @@ module.exports = React.createClass({
         localStorage.iconBackgroundColor = color;
     },
 
+    /**
+     * Called when user clicks copy button
+     *
+     * @param  {Event} evt
+     */
     handleCopyClick: function(evt) {
-        var defNode = this.refs.def;
-        if (defNode) {
-            defNode.select();
+        var node = this.urlInput;
+        if (node) {
+            node.select();
             document.execCommand('copy');
         }
         if (this.props.onClose) {

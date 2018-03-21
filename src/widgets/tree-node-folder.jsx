@@ -8,7 +8,7 @@ require('./tree-node-folder.scss');
 var TreeNodeFolder = module.exports = React.createClass({
     displayName: 'TreeNodeFolder',
     propTypes: {
-        folder: PropTypes.object.isRequired,
+        folder: PropTypes.object,
         root: PropTypes.string,
         onSelect: PropTypes.func,
     },
@@ -20,6 +20,9 @@ var TreeNodeFolder = module.exports = React.createClass({
      */
     render: function() {
         var folder = this.props.folder;
+        if (!folder) {
+            return null;
+        }
         var label = folder.path || '[ROOT]';
         var workingFolder;
         if (this.props.root) {

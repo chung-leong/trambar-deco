@@ -25,7 +25,9 @@ module.exports = React.createClass({
     getInitialState: function() {
         return {
             view: this.getViewFromHash(),
-            data: null,
+            data: {},
+            languageCodes: [],
+            selectedLanguageCode: localStorage.languageCode || getBrowserLanguage(),
             selectedIcon: '',
             selectedComponentId: '',
             showingDialog: false,
@@ -63,7 +65,20 @@ module.exports = React.createClass({
         xhr.onload = (evt) => {
             var data = evt.target.response;
             if (!_.isEqual(data, this.state.data)) {
-                this.setState({ data });
+                var languageCodes = [];
+                _.each(data.components, (component) => {
+                    _.each(_.keys(component.text), (code) => {
+                        if (!_.includes(languageCodes, code)) {
+                            languageCodes.push(code);
+                        }
+                    });
+                });
+                var selectedLanguageCode = this.state.selectedLanguageCode;
+                if (!_.includes(languageCodes, selectedLanguageCode)) {
+                    selectedLanguageCode = _.first(languageCodes);
+                }
+                languageCodes.sort();
+                this.setState({ data, languageCodes, selectedLanguageCode });
             }
         };
     },
@@ -82,9 +97,6 @@ module.exports = React.createClass({
      * @return {ReactElement}
      */
     render: function() {
-        if (!this.state.data) {
-            return null;
-        }
         return (
             <div className="application">
                 {this.renderSideNavigation()}
@@ -125,6 +137,7 @@ module.exports = React.createClass({
                 <SideButton {...componentsProps} />
                 <SideButton {...sourceTreeProps} />
                 <SideButton {...iconsProps} />
+                {this.renderLanguageButtons()}
             </div>
         );
     },
@@ -155,6 +168,7 @@ module.exports = React.createClass({
         var dialogProps = {
             show: this.state.showingDialog,
             component: selectedComponent,
+            languageCode: this.state.selectedLanguageCode,
             onClose: this.handleDialogClose,
         };
         return (
@@ -179,6 +193,7 @@ module.exports = React.createClass({
         var props = {
             key: index,
             component,
+            languageCode: this.state.selectedLanguageCode,
             onSelect: this.handleComponentSelect,
         };
         return <AppComponent {...props} />;
@@ -191,7 +206,6 @@ module.exports = React.createClass({
      */
     renderSourceTree: function() {
         var components = this.state.data.components;
-        var folder = this.state.data.folder;
         var selectedComponent = _.find(components, { id: this.state.selectedComponentId });
         var dialogProps = {
             show: this.state.showingDialog,
@@ -237,7 +251,7 @@ module.exports = React.createClass({
      * @param  {String} className
      * @param  {Number} index
      *
-     * @return {[type]}
+     * @return {ReactElement}
      */
     renderIcon: function(className, index) {
         var iconProps = {
@@ -247,6 +261,30 @@ module.exports = React.createClass({
             onSelect: this.handleIconSelect,
         };
         return <FontAwesomeIcon {...iconProps} />
+    },
+
+    /**
+     * Render buttons for selecting language
+     *
+     * @return {ReactElement}
+     */
+    renderLanguageButtons: function() {
+        var buttons = _.map(this.state.languageCodes, (code) => {
+            var props = {
+                className: 'language-button',
+                lang: code,
+                onClick: this.handleLanguageClick
+            };
+            if (code === this.state.selectedLanguageCode) {
+                props.className += ' selected';
+            }
+            return (
+                <div key={code} {...props}>
+                    {code}
+                </div>
+            );
+        });
+        return <div className="language-buttons">{buttons}</div>;
     },
 
     /**
@@ -341,6 +379,17 @@ module.exports = React.createClass({
     },
 
     /**
+     * Called when user clicks a language button
+     *
+     * @param  {Object} evt
+     */
+    handleLanguageClick: function(evt) {
+        var selectedLanguageCode = evt.currentTarget.lang;
+        localStorage.languageCode = selectedLanguageCode;
+        this.setState({ selectedLanguageCode });
+    },
+
+    /**
      * Called when user closes a dialog box
      *
      * @param  {Event} evt
@@ -365,4 +414,23 @@ function SideButton(props) {
             <i className={`fa fa-${props.icon} fa-fw`} />
         </a>
     );
+}
+
+function getBrowserLanguage() {
+    // check navigator.languages
+    _.each(navigator.languages, check);
+
+    // check other fields
+    var keys = [ 'language', 'browserLanguage', 'systemLanguage', 'userLanguage' ];
+    _.each(keys, (key) => { check(navigator[key]) })
+
+    var code;
+    function check(lang) {
+        if (code === undefined) {
+            if (lang && lang.length >= 2) {
+                code = _.toLower(lang).substr(0, 2);
+            }
+        }
+    }
+    return code;
 }

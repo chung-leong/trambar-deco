@@ -12,6 +12,7 @@ module.exports = React.createClass({
     propTypes: {
         show: PropTypes.bool,
         component: PropTypes.object,
+        languageCode: PropTypes.string.isRequired,
         onClose: PropTypes.func,
     },
 
@@ -78,10 +79,16 @@ module.exports = React.createClass({
      * @return {ReactElement}
      */
     renderText: function() {
-        var text = this.props.component.text.en;
+        var className = 'text';
+        var versions = this.props.component.text;
+        var text = _.get(versions, this.props.languageCode);
+        if (text === undefined) {
+            text = _.first(_.values(versions)) || '';
+            className += ' missing-language';
+        }
         var elements = MarkGor.parse(text);
         return (
-            <div className="text">
+            <div className={className}>
                 {elements}
             </div>
         );

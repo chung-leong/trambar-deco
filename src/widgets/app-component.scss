@@ -73,6 +73,10 @@
                     margin-top: 0;
                 }
             }
+
+            &.missing-language {
+                opacity: 0.25;
+            }
         }
     }
 
