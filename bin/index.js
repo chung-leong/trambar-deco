@@ -11,6 +11,7 @@ var Ignore = require('ignore');
 var Chokidar = require('chokidar');
 var Express = require('express');
 var SockJS = require('sockjs');
+var MarkGor = require('mark-gor');
 
 var optionDefinitions = [
     {
@@ -74,36 +75,18 @@ try {
 }
 
 var port = parseInt(options.port) || 8118;
-var languageCode = (process.env.LANG || 'zz').substr(0, 2).toLowerCase();
+var languageCode = (process.env.LANG || 'en').substr(0, 2).toLowerCase();
 
-// default to cwd if no folder is given
-var selectedFolderPaths = options['*'];
-if (_.isEmpty(selectedFolderPaths)) {
-    selectedFolderPaths = [ '.' ];
+var currentFolderPath = Path.resolve('.');
+var gitRootPath = findGitFolder(currentFolderPath);
+if (!gitRootPath) {
+    console.log('Not inside a Git working folder');
+    process.exit(-1);
 }
-// use absolute paths
-selectedFolderPaths = _.map(selectedFolderPaths, (path) => {
-    return Path.resolve(path);
-});
-
-// look for git root folder
-var selectedRootPath;
-_.each(selectedFolderPaths, (path) => {
-    var rootPath = findGitFolder(path);
-    if (!rootPath) {
-        console.log(`Not in a git repository: ${path}`);
-        process.exit(-1);
-    }
-    if (selectedRootPath && selectedRootPath !== rootPath) {
-        console.log(`In a different git respository: ${path}`);
-        process.exit(-1);
-    }
-    selectedRootPath = rootPath;
-});
 
 if (options.json) {
-    return findFilesInSelectedfolders().then((folders) => {
-        var data = exportData(folders);
+    return describeCurrentFolder().then((folder) => {
+        var data = exportData(folder);
         console.log(JSON.stringify(data, undefined, 2));
     });
 } else {
@@ -111,14 +94,14 @@ if (options.json) {
     var server = app.listen(port);
     app.set('json spaces', 2);
     app.get('/data', function(req, res) {
-        return findFilesInSelectedfolders().then((folders) => {
-            var data = exportData(folders);
+        return describeCurrentFolder().then((folder) => {
+            var data = exportData(folder);
             res.json(data);
         });
     });
     app.get('/images/*', function(req, res) {
         var relPath = req.params[0];
-        var absPath = Path.join(selectedRootPath, relPath);
+        var absPath = Path.join(gitRootPath, relPath);
         var folderName = Path.basename(Path.dirname(relPath));
         if (folderName !== '.trambar') {
             res.sendStatus(404);
@@ -175,7 +158,7 @@ if (options.json) {
     // do a scan to populate the .gitignore cache, then
     // start watching the source folders for changes
     if (!options['no-watch']) {
-        findFilesInSelectedfolders().then((folders) => {
+        scanWorkingFolder().then((folder) => {
             startFileWatch();
         });
     }
@@ -187,26 +170,38 @@ if (options.json) {
      */
     function startFileWatch() {
         // using .gitignore files to determine what files to ignore
-        watcher = Chokidar.watch(selectedFolderPaths, {
+        watcher = Chokidar.watch(gitRootPath, {
             ignored: shouldIgnoreSync,
             ignoreInitial: true,
         });
         watcher.on('add', (path) => {
-            invalidateFolderlisting(path);
-            invalidateTrambarFolder(path);
-            invalidateGitIgnore(path);
-            sendChangeNotification();
+            var changes = [
+                invalidateFolderlisting(path),
+                invalidateDescriptor(path),
+                invalidateGitIgnore(path),
+            ];
+            if (_.some(changes)) {
+                sendChangeNotification();
+            }
         });
         watcher.on('change', (path) => {
-            invalidateTrambarFolder(path);
-            invalidateGitIgnore(path);
-            sendChangeNotification();
+            var changes = [
+                invalidateDescriptor(path),
+                invalidateGitIgnore(path),
+            ];
+            if (_.some(changes)) {
+                sendChangeNotification();
+            }
         });
         watcher.on('unlink', (path) => {
-            invalidateFolderlisting(path);
-            invalidateTrambarFolder(path);
-            invalidateGitIgnore(path);
-            sendChangeNotification();
+            var changes = [
+                invalidateFolderlisting(path),
+                invalidateDescriptor(path),
+                invalidateGitIgnore(path),
+            ];
+            if (_.some(changes)) {
+                sendChangeNotification();
+            }
         });
     }
 
@@ -214,41 +209,41 @@ if (options.json) {
      * Invalidate folder cache
      *
      * @param  {String} path
+     *
+     * @return {Boolean}
      */
     function invalidateFolderlisting(path) {
         var folderPath = Path.dirname(path);
-        clearFolderCache(folderPath);
+        return clearFolderCache(folderPath);
     }
 
     /**
      * Invalidate .trambar cache
      *
      * @param  {String} path
+     *
+     * @return {Boolean}
      */
-    function invalidateTrambarFolder(path) {
-        var folderPath = Path.dirname(path);
-        var folderName = Path.basename(folderPath);
-        if (folderName === '.trambar') {
-            var targetFolderPath = Path.dirname(folderPath);
-            clearTrambarFolderCache(targetFolderPath);
-        }
+    function invalidateDescriptor(path) {
+        return clearDescriptorCache(path);
     }
 
     /**
      * Invlalidate .gitignore
      *
      * @param  {String} path
+     *
+     * @return {Boolean}
      */
     function invalidateGitIgnore(path) {
-        var folderPath = Path.dirname(path);
-        var fileName = Path.basename(path);
-        if (fileName === '.gitignore') {
-            clearGitignoreCache(folderPath);
-
-            findFilesInSelectedfolders().then((folders) => {
+        if (clearGitignoreCache(path)) {
+            // reload .gitignore and restart watch
+            scanWorkingFolder().then(() => {
                 restartFileWatch();
             });
+            return true;
         }
+        return false;
     }
 
     /**
@@ -266,39 +261,39 @@ if (options.json) {
 /**
  * Look for files and their descriptoin in selected folders
  *
- * @return {Promise<Array<Folder>>}
+ * @return {Promise<Folder>}
  */
-function findFilesInSelectedfolders() {
-    return Promise.map(selectedFolderPaths, (folderPath) => {
-        return findFiles(folderPath);
+function describeCurrentFolder() {
+    return findFiles(currentFolderPath).then((folder) => {
+        return loadDescriptors(gitRootPath).then((descriptors) => {
+            applyDescriptors(folder, descriptors);
+            return folder;
+        });
     });
 }
 
 /**
- * Export all data collected about the selected folders
+ * Look for files in current folder
  *
- * @param  {Array<Folder>} folders
- *
- * @return {Object}
+ * @return {Promise<Folder>}
  */
-function exportData(folders) {
-    return {
-        components: exportComponents(folders),
-        folders: exportFolders(folders),
-    };
+function scanWorkingFolder() {
+    return findFiles(gitRootPath);
 }
 
 /**
- * Export folder objects
+ * Export all data collected about the current folder
  *
- * @param  {Array<Folder>} folders
+ * @param  Folder} folder
  *
- * @return {Array<Object>}
+ * @return {Object}
  */
-function exportFolders(folders) {
-    return _.map(folders, (folder) => {
-        return exportFolder(folder);
-    })
+function exportData(folder) {
+    return {
+        components: exportComponents(folder),
+        folder: exportFolder(folder, true),
+        root: gitRootPath,
+    };
 }
 
 /**
@@ -343,16 +338,14 @@ function exportFile(file, includeComponents) {
 /**
  * Export component descriptions
  *
- * @param  {Array<Folder>} folders
+ * @param  {Folder} folder
  *
  * @return {Array<Object>}
  */
-function exportComponents(folders) {
+function exportComponents(folder) {
     // get a list of all files
     var files = [];
-    _.each(folders, (folder) => {
-        collectFiles(folder, files);
-    });
+    collectFiles(folder, files);
     files = _.sortBy(files, 'path');
 
     // create a map connecting files to components
@@ -372,15 +365,7 @@ function exportComponents(folders) {
 
     return _.map(components, (component) => {
         var fileList = componentFileLists.get(component);
-        var object = {};
-        object.id = component.id;
-        object.text = component.text;
-        if (component.imageFile) {
-            object.image = exportPath(component.imageFile);
-        }
-        if (component.icon) {
-            object.icon = component.icon;
-        }
+        var object = _.clone(component);
         object.files = _.map(fileList, (file) => {
             return exportFile(file, false);
         });
@@ -396,7 +381,7 @@ function exportComponents(folders) {
  * @return {String}
  */
 function exportPath(path) {
-    return Path.relative(selectedRootPath, path);
+    return Path.relative(gitRootPath, path);
 }
 
 /**
@@ -407,32 +392,24 @@ function exportPath(path) {
  * @return {Promise<Folder>}
  */
 function findFiles(folderPath) {
-    // load .trambar contents for this folder
-    return loadTrambarFolders(folderPath).then((trambarFolders) => {
-        return scanFolder(folderPath).mapSeries((childPath) => {
-            return FS.lstatAsync(childPath).then((stats) => {
-                if (stats.isDirectory()) {
-                    var name = Path.basename(childPath);
-                    if (name !== '.git') {
-                        return findFiles(childPath);
-                    } else {
-                        return null;
-                    }
+    return scanFolder(folderPath).mapSeries((childPath) => {
+        return FS.lstatAsync(childPath).then((stats) => {
+            if (stats.isDirectory()) {
+                var name = Path.basename(childPath);
+                if (name !== '.git') {
+                    return findFiles(childPath);
                 } else {
-                    return Promise.map(trambarFolders, (trambarFolder) => {
-                        return findMatchingComponents(trambarFolder, childPath);
-                    }).then((componentLists) => {
-                        var components = _.flatten(componentLists);
-                        return isTextFile(childPath).then((text) => {
-                            return new File(childPath, text, components);
-                        });
-                    });
+                    return null;
                 }
-            });
-        }).then((children) => {
-            children = _.filter(children);
-            return new Folder(folderPath, children);
+            } else {
+                return isTextFile(childPath).then((text) => {
+                    return new File(childPath, text);
+                });
+            }
         });
+    }).then((children) => {
+        children = _.filter(children);
+        return new Folder(folderPath, children);
     });
 }
 
@@ -452,178 +429,146 @@ function collectFiles(folder, list) {
     });
 }
 
-var trambarFolderCache;
+var trambarDescriptorCache;
 
-/**
- * Load descriptions in a .trambar folder
- *
- * @param  {String} parentPath
- *
- * @return {Promise<TrambarFolder|null>}
- */
-function loadTrambarFolder(parentPath) {
-    if (!trambarFolderCache) {
-        trambarFolderCache = {};
+function loadDescriptor(path, folderPath) {
+    if (!trambarDescriptorCache) {
+        trambarDescriptorCache = {};
     }
-    var promise = trambarFolderCache[parentPath];
+    var promise = trambarDescriptorCache[path];
     if (promise) {
         return promise;
     }
-    promise = scanFolder(`${parentPath}/.trambar`).then((filePaths) => {
-        // group the contents based on the names of the files
-        var components = [];
-        _.each(filePaths, (filePath) => {
-            var fileName = Path.basename(filePath);
-            var name;
-            var textFile, iconFile, imageFile, matchFile;
-            var match;
-            if (match = /(.*?)(\.([a-z]{2}))?\.md$/.exec(fileName)) {
-                name = match[1];
-                textFile = _.set({}, match[3] || languageCode, filePath);
-            } else if (match = /(.*)\.(jpeg|jpg|png|gif)$/.exec(fileName)) {
-                name = match[1];
-                imageFile = filePath;
-            } else if (match = /(.*)\.fa$/.exec(fileName)) {
-                name = match[1];
-                iconFile = filePath;
-            } else if (match = /(.*)\.match$/.exec(fileName)) {
-                name = match[1];
-                matchFile = filePath;
-                component = { name, matchFile };
-            }
-            if (name) {
-                var component = _.find(components, { name });
-                if (!component) {
-                    var id = Path.relative(selectedRootPath, `${parentPath}/${name}`);
-                    component = new Component(name, id);
-                    components.push(component);
-                }
-                if (textFile) {
-                    _.assign(component.textFile, textFile);
-                } else if(imageFile) {
-                    component.imageFile = imageFile;
-                } else if (iconFile) {
-                    component.iconFile = iconFile;
-                } else if (matchFile) {
-                    component.matchFile = matchFile;
-                }
-            }
-        });
-        return components;
-    }).mapSeries((component) => {
-        // load text files
-        var promises = {
-            matchRules: Promise.resolve(component.matchFile).then((path) => {
-                if (!path) {
-                    return null;
-                }
-                // load file with fn patterns
-                return FS.readFileAsync(path, 'utf8').then((text) => {
-                    var patterns = _.split(text, /[\r\n]+/);
-                    // use engine for handling .gitignore files to match
-                    var matchRules = Ignore().add(patterns);
-                    matchRules.match = matchRules.ignores;
-                    return matchRules;
-                });
-            }),
-            icon: Promise.resolve(component.iconFile).then((path) => {
-                if (!path) {
-                    return null;
-                }
-                // load file with font-awesome class name
-                return FS.readFileAsync(path, 'utf8').then((text) => {
-                    var lines = _.split(text, /[\r\n]+/);
-                    var props = {};
-                    _.each(lines, (line) => {
-                        if (!/^\s*#/.test(line)) {
-                            var match = /^\s*([a-z\-]+)\s*\:\s*(\S*)/.exec(line);
-                            if (match) {
-                                props[match[1]] = match[2].replace(/\;$/, '');
-                            }
-                        }
-                    });
-                    return _.pick(props, 'class', 'color', 'background-color');
-                });
-            }),
-            text: Promise.resolve(component.textFile).then((paths) => {
-                // load each language version
-                return Promise.props(_.mapValues(paths, (path, lang) => {
-                    return FS.readFileAsync(path, 'utf8');
-                }));
-            }),
-        };
-        // wait for promises to resolve then set properties
-        return Promise.props(promises).then((props) => {
-            _.assign(component, props);
-            return component;
-        });
-    }).then((components) => {
-        if (!_.isEmpty(components)) {
-            return new TrambarFolder(parentPath, components);
-        } else {
-            return null;
+    promise = parseDescriptorFile(path, languageCode).then((info) => {
+        var rules = info.rules;
+        var name = _.replace(Path.basename(path), /\.\w+$/, '');
+        if (!rules) {
+            // implict rule: match <filename>.*
+            rules = [ `${name}.*` ];
         }
+        var id = `${folderPath}/${name}`;
+        var iconURL = info.icon;
+        if (iconURL) {
+            if (!/^\w+?:/.test(iconURL)) {
+                var trambarFolderPath = Path.dirname(path);
+                var iconPath = `${trambarFolderPath}/${iconURL}`;
+                var imageRelativePath = Path.relative(gitRootPath, iconPath);
+                iconURL = `images/${imageRelativePath}`;
+            }
+        }
+        var component = new Component(id, info.descriptions, iconURL);
+        var descriptor = new Descriptor(name, folderPath, rules, component);
+        return descriptor;
     });
-    trambarFolderCache[parentPath] = promise;
+    trambarDescriptorCache[path] = promise;
     return promise;
+}
+
+function loadDescriptors(folderPath) {
+    return scanFolder(`${folderPath}/.trambar`).filter((filePath) => {
+        return /\.md$/.test(filePath);
+    }).mapSeries((filePath) => {
+        return loadDescriptor(filePath, folderPath);
+    }).then((descriptors) => {
+        return scanFolder(folderPath).filter((childPath) => {
+            return FS.lstatAsync(childPath).then((stats) => {
+                if (stats.isDirectory()) {
+                    // .trambar folder cannot be nested
+                    var name = Path.basename(childPath);
+                    if (name !== '.trambar') {
+                        return true;
+                    }
+                }
+            });
+        }).each((childFolderPath) => {
+            return loadDescriptors(childFolderPath).each((descriptor) => {
+                descriptors.push(descriptor);
+            });
+        }).then(() => {
+            return descriptors;
+        });
+    });
+}
+
+/**
+ * Add component descriptions to files in folder
+ *
+ * @param  {Folder|File} object
+ * @param  {Array<Descriptor>}
+ */
+function applyDescriptors(object, descriptors) {
+    if (object instanceof File) {
+        var file = object;
+        var isTrambar = /\/.trambar\//;
+        var matching = _.filter(descriptors, (descriptor) => {
+            if (descriptor.matching) {
+                if (isInFolder(file.path, descriptor.folderPath)) {
+                    if (!isTrambar.test(file.path)) {
+                        var relativePath = Path.relative(descriptor.folderPath, file.path);
+                        if (descriptor.matching(relativePath)) {
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    }
+                }
+            }
+            if (descriptor.matchingRelative) {
+                if (!isTrambar.test(file.path)) {
+                    var relativePath = Path.relative(descriptor.folderPath, file.path);
+                    if (descriptor.matchingRelative(relativePath)) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+            }
+            if (descriptor.matchingTrambar) {
+                if (isTrambar.test(file.path)) {
+                    var relativePath = Path.relative(descriptor.folderPath, file.path);
+                    if (descriptor.matchingTrambar(relativePath)) {
+                        return true;
+                    }
+                }
+            }
+        });
+        file.components = _.map(matching, 'component');
+    } else if (object instanceof Folder) {
+        var folder = object;
+        _.each(folder.children, (child) => {
+            applyDescriptors(child, descriptors);
+        });
+    }
+}
+
+function isInFolder(filePath, folderPath) {
+    var len = folderPath.length;
+    if (filePath.substr(0, len) === folderPath) {
+        if (filePath.charAt(len) === '/') {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
  * Clear cached .trambar folders
  *
- * @param  {String} folderPath
+ * @param  {String} filePath
+ *
+ * @return {Boolean}
  */
-function clearTrambarFolderCache(folderPath) {
-    if (!folderPath) {
-        trambarFolderCache = {};
+function clearDescriptorCache(filePath) {
+    if (!filePath) {
+        trambarDescriptorCache = {};
+        return true;
     } else {
-        trambarFolderCache = omitFolder(trambarFolderCache, folderPath);
-    }
-}
-
-/**
- * Load descriptions in .trambar folders
- *
- * @param  {String} targetFolderPath
- *
- * @return {Promise<Array<TrambarFolder>>}
- */
-function loadTrambarFolders(targetFolderPath) {
-    var paths = getFolderPaths(targetFolderPath);
-    return Promise.map(paths, (path) => {
-        return loadTrambarFolder(path);
-    }).then((folders) => {
-        return _.filter(folders);
-    });
-}
-
-/**
- * Find component definition in a .trambar folder matching
- * a file
- *
- * @param  {TrambarFolder} folder
- * @param  {String} path
- *
- * @return {Array<Component>}
- */
-function findMatchingComponents(folder, path) {
-    // relative to folder holding .trambar
-    var relPath = Path.relative(folder.path, path);
-    var relPathNoExt = relPath.replace(/\.\w*$/, '');
-    var components = _.filter(folder.components, (component) => {
-        if (component.matchRules) {
-            // match based on patterns in .match
-            if (component.matchRules.match(relPath)) {
-                return true;
-            }
-        } else {
-            // match by name (without extension)
-            if (component.name === relPathNoExt) {
-                return true;
-            }
+        if (trambarDescriptorCache[filePath]) {
+            trambarDescriptorCache = _.omit(trambarDescriptorCache, filePath);
+            return true;
         }
-    });
-    return components;
+    }
+    return false;
 }
 
 var gitignoreCache;
@@ -713,7 +658,7 @@ function getFolderPaths(folderPath) {
     do {
         paths.push(path);
         var parentPath = Path.dirname(path);
-        if (path !== parentPath && path !== selectedRootPath) {
+        if (path !== parentPath && path !== gitRootPath) {
             path = parentPath;
         } else {
             path = null;
@@ -783,12 +728,17 @@ var folderCache;
  * Clear folder cache
  *
  * @param  {String} folderPath
+ *
+ * @return {Boolean}
  */
 function clearFolderCache(folderPath) {
     if (!folderPath) {
         folderCache = {};
+        return true;
     } else {
+        var before = _.size(folderCache);
         folderCache = omitFolder(folderCache, folderPath);
+        return _.size(folderCache) < before;
     }
 }
 
@@ -892,21 +842,126 @@ function isTextFile(path) {
     });
 }
 
-function TrambarFolder(path, components) {
-    this.path = path;
-    this.components = components;
+/**
+ * Parse a Trambar-specific Markdown file
+ *
+ * @param  {String} path
+ * @param  {String} defaultLanguageCode
+ *
+ * @return {Promise<Object>}
+ */
+function parseDescriptorFile(path, defaultLanguageCode) {
+    return FS.readFileAsync(path, 'utf-8').then((text) => {
+        var parser = new MarkGor.Parser;
+        var tokens = parser.parse(text);
+
+        var languageTokens = {};
+        var defaultLanguageTokens = [];
+        var currentLanguageTokens = defaultLanguageTokens;
+        var fileMatchDefinitions = [];
+        var icon = null;
+        _.each(tokens, (token) => {
+            if (token.type === 'heading') {
+                var cap = _.trim(token.captured);
+                var m = /^#\s*([a-z]{2})\b/.exec(cap);
+                if (m) {
+                    var code = m[1];
+                    languageTokens[code] = currentLanguageTokens = [];
+                    return;
+                }
+            } else if (token.type === 'code') {
+                if (token.lang === 'fnmatch' || token.lang === 'match') {
+                    fileMatchDefinitions.push(token.text);
+                    return;
+                }
+            } else if (token.type === 'def') {
+                if (token.name === 'icon') {
+                    icon = token.href;
+                    return;
+                }
+            }
+            currentLanguageTokens.push(token);
+        });
+        if (!languageTokens[defaultLanguageCode]) {
+            languageTokens[defaultLanguageCode] = defaultLanguageTokens;
+        }
+        var descriptions = _.mapValues(languageTokens, (tokens) => {
+            var fragments = _.map(tokens, 'captured');
+            var text = fragments.join('');
+            return _.trim(text);
+        });
+        var rules = null;
+        if (!_.isEmpty(fileMatchDefinitions)) {
+            rules = _.flatten(_.map(fileMatchDefinitions, (patterns) => {
+                return _.filter(_.split(patterns, /[\r\n]+/));
+            }));
+        }
+        return { descriptions, rules, icon };
+    });
 }
 
-function Component(name, id) {
+/**
+ * Parse rules for matching filename against patterns
+ *
+ * @param  {Array<String>} rules
+ *
+ * @return {Function|null}
+ */
+function parseFnmatchRules(rules) {
+    // use engine for handling .gitignore files to match
+    if (_.isEmpty(rules)) {
+        return null;
+    }
+    var ignoreEngine = Ignore().add(rules);
+    return (path) => {
+        return ignoreEngine.ignores(path);
+    };
+}
+
+function Descriptor(name, folderPath, rules, component) {
     this.name = name;
+    this.folderPath = folderPath;
+    this.component = component;
+    this.rules = rules;
+
+    var hierarchicalRules = [];
+    var relativeRules = [];
+    var trambarRules = [];
+    var isRelative = /^\s*\.\.\//;
+    var isTrambar = /\/.trambar\//;
+    _.each(rules, (rule) => {
+        if (!rule) {
+            return;
+        }
+        if (isTrambar.test(rule)) {
+            trambarRules.push(rule);
+        } else if (isRelative.test(rule)) {
+            // a rule that requires a relative path
+            relativeRules.push(rule);
+        } else {
+            // a normal rule
+            hierarchicalRules.push(rule);
+        }
+    });
+    this.matching = parseFnmatchRules(hierarchicalRules);
+    this.matchingRelative = parseFnmatchRules(relativeRules);
+    this.matchingTrambar = parseFnmatchRules(trambarRules);
+}
+
+function Component(id, text, url) {
     this.id = id;
-    this.textFile = {};
-    this.text = {};
-    this.imageFile = null;
-    this.iconFile = null;
-    this.icon = null;
-    this.matchFile = null;
-    this.matchRules = null;
+    this.text = text;
+    if (/^fa:\/\//.test(url)) {
+        // special Font-Awesome URL fa://
+        var parts = _.split(url.substr(5), '/');
+        this.icon = {
+            class: parts[0],
+            backgroundColor: parts[1] || null,
+            color: parts[2] || null,
+        };
+    } else if (url) {
+        this.image = { url };
+    }
 }
 
 function Folder(path, children) {
@@ -914,8 +969,8 @@ function Folder(path, children) {
     this.children = children;
 }
 
-function File(path, text, components) {
+function File(path, text) {
     this.path = path;
     this.text = text;
-    this.components = components;
+    this.components = null;
 }

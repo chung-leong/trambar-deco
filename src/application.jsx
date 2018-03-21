@@ -25,7 +25,7 @@ module.exports = React.createClass({
     getInitialState: function() {
         return {
             view: this.getViewFromHash(),
-            data: {},
+            data: null,
             selectedIcon: '',
             selectedComponentId: '',
             showingDialog: false,
@@ -82,6 +82,9 @@ module.exports = React.createClass({
      * @return {ReactElement}
      */
     render: function() {
+        if (!this.state.data) {
+            return null;
+        }
         return (
             <div className="application">
                 {this.renderSideNavigation()}
@@ -188,36 +191,24 @@ module.exports = React.createClass({
      */
     renderSourceTree: function() {
         var components = this.state.data.components;
-        var folders = this.state.data.folders;
+        var folder = this.state.data.folder;
         var selectedComponent = _.find(components, { id: this.state.selectedComponentId });
         var dialogProps = {
             show: this.state.showingDialog,
             component: selectedComponent,
             onClose: this.handleDialogClose,
         };
+        var treeNodeProps = {
+            folder: this.state.data.folder,
+            root: this.state.data.root,
+            onSelect: this.handleComponentSelect,
+        };
         return (
             <div className="page-view-port">
-                {_.map(folders, this.renderSourceTreeFolder)}
+                <TreeNodeFolder {...treeNodeProps} />;
                 <AppComponentDialogBox {...dialogProps} />
             </div>
         );
-    },
-
-    /**
-     * Render source tree folder node
-     *
-     * @param  {Object} folder
-     * @param  {Number} index
-     *
-     * @return {ReactElement}
-     */
-    renderSourceTreeFolder: function(folder, index) {
-        var props = {
-            key: index,
-            folder,
-            onSelect: this.handleComponentSelect,
-        };
-        return <TreeNodeFolder {...props} />;
     },
 
     /**

@@ -49,7 +49,7 @@ module.exports = React.createClass({
     renderPicture: function() {
         var component = this.props.component;
         if (component.image) {
-            var url = `images/${component.image}`;
+            var url = component.image.url;
             return (
                 <div className="picture">
                     <img src={url} />
@@ -57,10 +57,10 @@ module.exports = React.createClass({
             );
         } else {
             var icon = component.icon || {};
-            var iconClassName = icon['class'] || 'fa-cubes';
+            var iconClassName = icon.class || 'fa-cubes';
             var style = {
-                color: icon['color'],
-                backgroundColor: icon['background-color'],
+                color: icon.color,
+                backgroundColor: icon.backgroundColor,
             };
             return (
                 <div className="picture">

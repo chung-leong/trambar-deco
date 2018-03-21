@@ -57,5 +57,5 @@ function renderComponentBadges(props) {
             </div>
         );
     });
-    return <div className="components">{badges}</div>;
+    return <div className="badges">{badges}</div>;
 }

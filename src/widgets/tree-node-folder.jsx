@@ -9,6 +9,7 @@ var TreeNodeFolder = module.exports = React.createClass({
     displayName: 'TreeNodeFolder',
     propTypes: {
         folder: PropTypes.object.isRequired,
+        root: PropTypes.string,
         onSelect: PropTypes.func,
     },
 
@@ -19,10 +20,17 @@ var TreeNodeFolder = module.exports = React.createClass({
      */
     render: function() {
         var folder = this.props.folder;
+        var label = folder.path || '[ROOT]';
+        var workingFolder;
+        if (this.props.root) {
+            workingFolder = (
+                <span className="working-folder">(working folder: {this.props.root})</span>
+            );
+        }
         return (
             <div className="tree-node-folder">
                 <i className="fa fa-folder fa-fw" />
-                {folder.path || '[ROOT]'}
+                {label} {workingFolder}
                 <div className="files">
                     {_.map(folder.children, this.renderChild)}
                 </div>
