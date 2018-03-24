@@ -86,7 +86,7 @@ module.exports = React.createClass({
                 document.body.removeChild(this.containerNode);
                 this.containerNode = null;
                 this.containerRemovalTimeout = 0;
-            }, 1000);
+            }, 500);
         }
         var props = {
             show: false,

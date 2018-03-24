@@ -27,7 +27,7 @@ module.exports = React.createClass({
             view: this.getViewFromHash(),
             data: {},
             languageCodes: [],
-            selectedLanguageCode: localStorage.languageCode || getBrowserLanguage(),
+            selectedLanguageCode: localStorage.languageCode || getBrowserLanguage() || 'en',
             selectedIcon: '',
             selectedComponentId: '',
             showingDialog: false,
@@ -210,6 +210,7 @@ module.exports = React.createClass({
         var dialogProps = {
             show: this.state.showingDialog,
             component: selectedComponent,
+            languageCode: this.state.selectedLanguageCode,
             onClose: this.handleDialogClose,
         };
         var treeNodeProps = {

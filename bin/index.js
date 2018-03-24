@@ -85,7 +85,7 @@ if (!gitRootPath) {
 }
 
 if (options.json) {
-    return describeCurrentFolder().then((folder) => {
+    return describeCurrentFolder(languageCode).then((folder) => {
         var data = exportData(folder);
         console.log(JSON.stringify(data, undefined, 2));
     });
@@ -94,7 +94,7 @@ if (options.json) {
     var server = app.listen(port);
     app.set('json spaces', 2);
     app.get('/data', function(req, res) {
-        return describeCurrentFolder().then((folder) => {
+        return describeCurrentFolder(languageCode).then((folder) => {
             var data = exportData(folder);
             res.json(data);
         });
@@ -174,76 +174,9 @@ if (options.json) {
             ignored: shouldIgnoreSync,
             ignoreInitial: true,
         });
-        watcher.on('add', (path) => {
-            var changes = [
-                invalidateFolderlisting(path),
-                invalidateDescriptor(path),
-                invalidateGitIgnore(path),
-            ];
-            if (_.some(changes)) {
-                sendChangeNotification();
-            }
-        });
-        watcher.on('change', (path) => {
-            var changes = [
-                invalidateDescriptor(path),
-                invalidateGitIgnore(path),
-            ];
-            if (_.some(changes)) {
-                sendChangeNotification();
-            }
-        });
-        watcher.on('unlink', (path) => {
-            var changes = [
-                invalidateFolderlisting(path),
-                invalidateDescriptor(path),
-                invalidateGitIgnore(path),
-            ];
-            if (_.some(changes)) {
-                sendChangeNotification();
-            }
-        });
-    }
-
-    /**
-     * Invalidate folder cache
-     *
-     * @param  {String} path
-     *
-     * @return {Boolean}
-     */
-    function invalidateFolderlisting(path) {
-        var folderPath = Path.dirname(path);
-        return clearFolderCache(folderPath);
-    }
-
-    /**
-     * Invalidate .trambar cache
-     *
-     * @param  {String} path
-     *
-     * @return {Boolean}
-     */
-    function invalidateDescriptor(path) {
-        return clearDescriptorCache(path);
-    }
-
-    /**
-     * Invlalidate .gitignore
-     *
-     * @param  {String} path
-     *
-     * @return {Boolean}
-     */
-    function invalidateGitIgnore(path) {
-        if (clearGitignoreCache(path)) {
-            // reload .gitignore and restart watch
-            scanWorkingFolder().then(() => {
-                restartFileWatch();
-            });
-            return true;
-        }
-        return false;
+        watcher.on('add', handleFileChange.bind(null, 'add'));
+        watcher.on('change', handleFileChange.bind(null, 'change'));
+        watcher.on('unlink', handleFileChange.bind(null, 'unlink'));
     }
 
     /**
@@ -256,16 +189,47 @@ if (options.json) {
         }
         startFileWatch();
     }
+
+    /**
+     * Handle file system change events
+     *
+     * @param  {String} event
+     * @param  {String} path
+     */
+    function handleFileChange(event, path) {
+        var changed = false;
+        if (event !== 'change') {
+            var folderPath = Path.dirname(path);
+            if (clearFolderCache(folderPath)) {
+                changed = true;
+            }
+        }
+        if (clearGitignoreCache(path)) {
+            // reload .gitignore and restart watch
+            scanWorkingFolder().then(() => {
+                restartFileWatch();
+            });
+            changed = true;
+        }
+        if (clearDescriptorCache(path)) {
+            changed = true;
+        }
+        if (changed) {
+            sendChangeNotification();
+        }
+    }
 }
 
 /**
  * Look for files and their descriptoin in selected folders
  *
+ * @param  {String} defaultLanguageCode
+ *
  * @return {Promise<Folder>}
  */
-function describeCurrentFolder() {
+function describeCurrentFolder(defaultLanguageCode) {
     return findFiles(currentFolderPath).then((folder) => {
-        return loadDescriptors(gitRootPath).then((descriptors) => {
+        return loadDescriptors(gitRootPath, defaultLanguageCode).then((descriptors) => {
             applyDescriptors(folder, descriptors);
             return folder;
         });
@@ -406,6 +370,13 @@ function findFiles(folderPath) {
                     return new File(childPath, text);
                 });
             }
+        }).catch((err) => {
+            // probably because the file is not longer there
+            // when a file is moved, we receive an add event
+            // then a unlink event; the first event could
+            // trigger a scan before the second link clear
+            // the cache used by scanFolder()
+            return null;
         });
     }).then((children) => {
         children = _.filter(children);
@@ -429,22 +400,31 @@ function collectFiles(folder, list) {
     });
 }
 
-var trambarDescriptorCache;
+var descriptorCache;
 
-function loadDescriptor(path, folderPath) {
-    if (!trambarDescriptorCache) {
-        trambarDescriptorCache = {};
+/**
+ * Load .trambar descriptors in given folder and subfolders
+ *
+ * @param  {String} folderPath
+ * @param  {String} path
+ * @param  {String} defaultLanguageCode
+ *
+ * @return {Promise<Descriptor>}
+ */
+function loadDescriptor(folderPath, path, defaultLanguageCode) {
+    if (!descriptorCache) {
+        descriptorCache = {};
     }
-    var promise = trambarDescriptorCache[path];
-    if (promise) {
-        return promise;
+    var descriptor = descriptorCache[path];
+    if (descriptor) {
+        return Promise.resolve(descriptor);
     }
-    promise = parseDescriptorFile(path, languageCode).then((info) => {
+    return parseDescriptorFile(path, defaultLanguageCode).then((info) => {
         var rules = info.rules;
         var name = _.replace(Path.basename(path), /\.\w+$/, '');
         if (!rules) {
-            // implict rule: match <filename>.*
-            rules = [ `${name}.*` ];
+            // implict rule: match /<filename>.*
+            rules = [ `/${name}.*` ];
         }
         var id = `${folderPath}/${name}`;
         var iconURL = info.icon;
@@ -458,17 +438,24 @@ function loadDescriptor(path, folderPath) {
         }
         var component = new Component(id, info.descriptions, iconURL);
         var descriptor = new Descriptor(name, folderPath, rules, component);
+        descriptorCache[path] = descriptor;
         return descriptor;
     });
-    trambarDescriptorCache[path] = promise;
-    return promise;
 }
 
-function loadDescriptors(folderPath) {
+/**
+ * Load .trambar descriptors in given folder and subfolders
+ *
+ * @param  {String} folderPath
+ * @param  {String} defaultLanguageCode
+ *
+ * @return {Promise<Array<Descriptor>>}
+ */
+function loadDescriptors(folderPath, defaultLanguageCode) {
     return scanFolder(`${folderPath}/.trambar`).filter((filePath) => {
         return /\.md$/.test(filePath);
     }).mapSeries((filePath) => {
-        return loadDescriptor(filePath, folderPath);
+        return loadDescriptor(folderPath, filePath, defaultLanguageCode);
     }).then((descriptors) => {
         return scanFolder(folderPath).filter((childPath) => {
             return FS.lstatAsync(childPath).then((stats) => {
@@ -481,7 +468,7 @@ function loadDescriptors(folderPath) {
                 }
             });
         }).each((childFolderPath) => {
-            return loadDescriptors(childFolderPath).each((descriptor) => {
+            return loadDescriptors(childFolderPath, defaultLanguageCode).each((descriptor) => {
                 descriptors.push(descriptor);
             });
         }).then(() => {
@@ -559,14 +546,9 @@ function isInFolder(filePath, folderPath) {
  * @return {Boolean}
  */
 function clearDescriptorCache(filePath) {
-    if (!filePath) {
-        trambarDescriptorCache = {};
+    if (descriptorCache && descriptorCache[filePath]) {
+        delete descriptorCache[filePath];
         return true;
-    } else {
-        if (trambarDescriptorCache[filePath]) {
-            trambarDescriptorCache = _.omit(trambarDescriptorCache, filePath);
-            return true;
-        }
     }
     return false;
 }
@@ -584,12 +566,12 @@ function loadGitIgnore(folderPath) {
     if (!gitignoreCache) {
         gitignoreCache = {};
     }
-    var promise = gitignoreCache[folderPath];
-    if (promise) {
-        return promise;
+    var gitignore = gitignoreCache[folderPath];
+    if (gitignore !== undefined) {
+        return Promise.resolve(gitignore);
     }
     var gitignorePath = `${folderPath}/.gitignore`;
-    promise = FS.lstatAsync(gitignorePath).then((stats) => {
+    return FS.lstatAsync(gitignorePath).then((stats) => {
         return FS.readFileAsync(gitignorePath, 'utf8').then((text) => {
             var patterns = _.split(text, /[\r\n]+/);
             var scanner = Ignore().add(patterns);
@@ -609,22 +591,25 @@ function loadGitIgnore(folderPath) {
         });
     }).catch((err) => {
         return null;
+    }).then((gitignore) => {
+        gitignoreCache[folderPath] = gitignore;
+        return gitignore;
     });
-    gitignoreCache[folderPath] = promise;
-    return promise;
 }
 
 /**
  * Clear cached .ignore files
  *
  * @param  {String} folderPath
+ *
+ * @return {Boolean}
  */
 function clearGitignoreCache(folderPath) {
-   if (!folderPath) {
-       gitignoreCache = {};
-   } else {
-       gitignoreCache = omitFolder(gitignoreCache, folderPath);
+   if (gitignoreCache && gitignoreCache[folderPath]) {
+       delete gitignoreCache[folderPath];
+       return true;
    }
+   return false;
 }
 
 /**
@@ -703,12 +688,12 @@ function scanFolder(folderPath) {
     if (!folderCache) {
         folderCache = {};
     }
-    var promise = folderCache[folderPath];
-    if (promise) {
-        return promise;
+    var listing = folderCache[folderPath];
+    if (listing) {
+        return Promise.resolve(listing);
     }
     // load .gitignore files
-    promise = loadGitIgnoreSets(folderPath).then((ignoreSets) => {
+    return loadGitIgnoreSets(folderPath).then((ignoreSets) => {
         // scan folder
         return FS.readdirAsync(folderPath).catch((err) => {
             return [];
@@ -716,10 +701,11 @@ function scanFolder(folderPath) {
             return Path.join(folderPath, childName);
         }).filter((childPath) => {
             return !shouldIgnore(childPath, ignoreSets);
+        }).then((listing) => {
+            folderCache[folderPath] = listing;
+            return listing;
         });
     });
-    folderCache[folderPath] = promise;
-    return promise;
 }
 
 var folderCache;
@@ -732,14 +718,11 @@ var folderCache;
  * @return {Boolean}
  */
 function clearFolderCache(folderPath) {
-    if (!folderPath) {
-        folderCache = {};
+    if (folderCache && folderCache[folderPath]) {
+        delete folderCache[folderPath];
         return true;
-    } else {
-        var before = _.size(folderCache);
-        folderCache = omitFolder(folderCache, folderPath);
-        return _.size(folderCache) < before;
     }
+    return false;
 }
 
 /**
@@ -752,6 +735,10 @@ function clearFolderCache(folderPath) {
  */
 function shouldIgnore(path, ignoreSets) {
     var ignore = false;
+    var name = Path.basename(path);
+    if (name === '.git') {
+        return true;
+    }
     _.each(ignoreSets, (set) => {
         // relative to folder containing the particular .gitignore
         var relPath = Path.relative(set.path, path);
@@ -766,26 +753,6 @@ function shouldIgnore(path, ignoreSets) {
         }
     });
     return ignore;
-}
-
-/**
- * Return a object without keys that match the path
- *
- * @param  {Object} cache
- * @param  {String} folderPath
- *
- * @return {Object}
- */
-function omitFolder(cache, folderPath) {
-    return _.omitBy(cache, (value, path) => {
-        if (path.indexOf(folderPath) === 0) {
-            if (path.length === folderPath.length) {
-                return true;
-            } else if (path.charAt(folderPath.length) === '/') {
-                return true;
-            }
-        }
-    });
 }
 
 /**
@@ -806,10 +773,7 @@ function shouldIgnoreSync(filePath) {
     var folderPath = Path.dirname(filePath);
     var paths = getFolderPaths(folderPath);
     var ignoreSets = _.map(paths, (path) => {
-        var promise = gitignoreCache[path];
-        if (promise) {
-            return promise.value();
-        }
+        return gitignoreCache[path];
     });
     ignoreSets = _.reverse(_.filter(ignoreSets));
     return shouldIgnore(filePath, ignoreSets);
