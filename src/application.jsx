@@ -38,7 +38,7 @@ module.exports = React.createClass({
      * Establish Websocket connection
      */
     requestNotification: function() {
-        this.socket = new SockJS('/socket');
+        this.socket = new SockJS('socket');
         this.socket.onopen = (evt) => {
         };
         this.socket.onmessage = (evt) => {

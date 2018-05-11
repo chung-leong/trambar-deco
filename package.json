@@ -1,6 +1,6 @@
 {
   "name": "trambar-deco",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A utility for previewing Trambar component descriptions",
   "bin": "bin/index.js",
   "scripts": {
