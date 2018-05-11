@@ -60,7 +60,7 @@ module.exports = React.createClass({
     retrieveData: function() {
         var xhr = new XMLHttpRequest();
         xhr.responseType = 'json';
-        xhr.open('GET', '/data');
+        xhr.open('GET', 'data');
         xhr.send();
         xhr.onload = (evt) => {
             var data = evt.target.response;
