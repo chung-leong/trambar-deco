@@ -1,6 +1,6 @@
 # Trambar-Deco
 
-Trambar-Deco is a utility for previewing [Trambar code decoration](https://github.com/chung-leong/trambar/blob/master/docs/decoration.md).
+Trambar-Deco is a utility for previewing [Trambar code decoration](https://github.com/trambarhq/trambar/blob/master/docs/decoration.md).
 
 ![Screenshot](docs/img/screenshot.png)
 
@@ -38,7 +38,7 @@ Multiple descriptions could be applicable to a given file.
 
 ### Picking Font Awesome icons
 
-The **Font Awesome icons** page lets you pick out a [component icon](https://github.com/chung-leong/trambar/blob/master/docs/decoration.md#component-icon):
+The **Font Awesome icons** page lets you pick out a [component icon](https://github.com/trambarhq/trambar/blob/master/docs/decoration.md#component-icon):
 
 ![Icons](docs/img/font-awesome.png)
 
@@ -49,7 +49,7 @@ will now be in the clipboard.
 ### Selecting language
 
 Use the language buttons at the lower-left-hand corner to switch between
-[languages](https://github.com/chung-leong/trambar/blob/master/docs/decoration.md#multilingual-descriptions):
+[languages](https://github.com/trambarhq/trambar/blob/master/docs/decoration.md#multilingual-descriptions):
 
 ![Languages](docs/img/languages.png)
 

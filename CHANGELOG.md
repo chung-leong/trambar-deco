@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.0.7
+
+* Fix scanning of .trambar folders
+
 ## 1.0.6
 
 * Made data URL relative

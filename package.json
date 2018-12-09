@@ -1,6 +1,6 @@
 {
   "name": "trambar-deco",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "A utility for previewing Trambar component descriptions",
   "bin": "bin/index.js",
   "scripts": {
@@ -10,11 +10,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:chung-leong/trambar-deco.git"
+    "url": "git@github.com:trambarhq/trambar-deco.git"
   },
   "author": "Chung Leong",
   "license": "MIT",
-  "homepage": "https://github.com/chung-leong/trambar-deco",
+  "homepage": "https://github.com/trambarhq/trambar-deco",
   "devDependencies": {
     "babel-core": "^6.24.1",
     "babel-loader": "^7.0.0",
