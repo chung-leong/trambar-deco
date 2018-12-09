@@ -220,6 +220,8 @@ if (options.json) {
     }
 }
 
+var isTrambar = /(^|\/).trambar\//;
+
 /**
  * Look for files and their descriptoin in selected folders
  *
@@ -486,7 +488,6 @@ function loadDescriptors(folderPath, defaultLanguageCode) {
 function applyDescriptors(object, descriptors) {
     if (object instanceof File) {
         var file = object;
-        var isTrambar = /\/.trambar\//;
         var matching = _.filter(descriptors, (descriptor) => {
             if (descriptor.matching) {
                 if (isInFolder(file.path, descriptor.folderPath)) {
