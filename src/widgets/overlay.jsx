@@ -1,119 +1,165 @@
-var React = require('react'), PropTypes = React.PropTypes;
-var ReactDOM = require('react-dom');
+import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
+import { useListener, useLastAcceptable } from 'relaks';
 
-require('./overlay.scss');
+import './overlay.scss';
 
-module.exports = React.createClass({
-    display: 'OverlayProxy',
-    propTypes: {
-        className: PropTypes.string,
-        show: PropTypes.bool,
-        onBackgroundClick: PropTypes.func,
-    },
+/**
+ * A component for displaying pop-up contents whose HTML nodes aren't contained
+ * in the HTML node of the parent.
+ */
+export function Overlay(props) {
+  const { className, show, children, onBackgroundClick, ...otherProps } = props;
+  const [ container, setContainer ] = useState(null);
+  const [ rendering, setRendering ] = useState(show);
+  const [ transitioning, setTransitioning ] = useState(false);
+  const contents = useLastAcceptable(children, !(rendering && !show));
 
-    getDefaultProps: function() {
-        return {
-            show: false
-        };
-    },
-
-    componentWillMount: function() {
-        if (this.props.show) {
-            this.show();
-        }
-    },
-
-    render: function() {
-        return null;
-    },
-
-    componentDidUpdate: function(prevProps) {
-        if (prevProps.show !== this.props.show) {
-            if (this.props.show) {
-                this.show();
-            } else {
-                this.hide();
-            }
-        } else if (prevProps.children !== this.props.children) {
-            if (this.props.show) {
-                this.redraw();
-            }
-        }
-    },
-
-    componentWillUnmount: function() {
-        this.hide();
-    },
-
-    show: function() {
-        if (!this.containerNode) {
-            this.containerNode = document.createElement('DIV');
-            document.body.appendChild(this.containerNode);
-        } else {
-            if (this.containerRemovalTimeout) {
-                clearTimeout(this.containerRemovalTimeout);
-                this.containerRemovalTimeout = 0;
-            }
-        }
-        var props = {
-            show: false,
-            onClick: this.handleClick,
-            children: this.props.children
-        };
-        ReactDOM.render(<Overlay {...props} />, this.containerNode);
-        setTimeout(() => {
-            props.show = true;
-            ReactDOM.render(<Overlay {...props} />, this.containerNode);
-        }, 10);
-    },
-
-    redraw: function() {
-        var props = {
-            show: true,
-            onClick: this.handleClick,
-            children: this.props.children
-        };
-        ReactDOM.render(<Overlay {...props} />, this.containerNode);
-    },
-
-    hide: function() {
-        if (!this.containerNode) {
-            return;
-        }
-        if (!this.containerRemovalTimeout) {
-            this.containerRemovalTimeout = setTimeout(() => {
-                ReactDOM.unmountComponentAtNode(this.containerNode);
-                document.body.removeChild(this.containerNode);
-                this.containerNode = null;
-                this.containerRemovalTimeout = 0;
-            }, 500);
-        }
-        var props = {
-            show: false,
-            children: this.props.children
-        };
-        ReactDOM.render(<Overlay {...props} />, this.containerNode);
-    },
-
-    handleClick: function(evt) {
-        var targetClass = evt.target.className;
-        if (targetClass === 'foreground' || targetClass === 'background') {
-            if (this.props.onBackgroundClick) {
-                this.props.onBackgroundClick(evt);
-            }
-        }
-    },
-});
-
-function Overlay(props) {
-    var classNames = [ 'overlay', props.show ? 'show' : 'hide' ];
-    if (props.className) {
-        classNames.push(props.className);
+  const handleClick = useListener((evt) => {
+    if (evt.button !== 0) {
+      return;
     }
-    return (
-        <div className={classNames.join(' ')} onClick={props.onClick}>
-            <div className="background"/>
-            <div className="foreground">{props.children}</div>
-        </div>
+    const targetClass = evt.target.className;
+    if (targetClass === 'foreground' || targetClass === 'background') {
+      if (onBackgroundClick) {
+        onBackgroundClick(evt);
+      }
+    }
+  });
+  const handleTouchMove = useListener((evt) => {
+    // prevent scrolling of contents underneath
+    const targetNode = evt.target;
+    let scrollableNode = null;
+    for (let p = targetNode; p && p !== window && p !== container; p = p.parentNode) {
+      const style = getComputedStyle(p);
+      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+        if (p.scrollHeight > p.clientHeight) {
+          scrollableNode = p;
+        }
+        break;
+      }
+    }
+    if (!scrollableNode) {
+      evt.preventDefault();
+    }
+  });
+  const handleKeyDown = useListener((evt) => {
+    if (evt.keyCode === 27) {   // ESC
+      if (onBackgroundClick) {
+        onBackgroundClick(evt);
+      }
+    }
+  });
+  const handleTransitionEnd = useListener((evt) => {
+    if (evt.propertyName === 'opacity') {
+      if (!show) {
+        setRendering(false);
+      }
+    }
+  });
+
+  useEffect(() => {
+    if (rendering) {
+      const frontEnd = document.getElementById('react-container');
+      const root = frontEnd.firstChild;
+      const node = document.createElement('DIV');
+      root.appendChild(node);
+      setContainer(node);
+      return () => {
+        root.removeChild(node);
+        setContainer(null);
+        setTransitioning(false);
+      };
+    }
+  }, [ rendering ]);
+  useEffect(() => {
+    if (rendering) {
+      // save focus
+      const el = document.activeElement;
+      if (el && el !== document.body) {
+        el.blur();
+      }
+      return () => {
+        // restore it
+        if (el && el !== document.body) {
+          el.focus();
+        }
+      };
+    }
+  }, [ rendering ]);
+  useEffect(() => {
+    if (show) {
+      if (!rendering) {
+        setRendering(true);
+      } else if (!transitioning) {
+        setTimeout(() => {
+          setTransitioning(true);
+        }, 25);
+      }
+    }
+  }, [ show, rendering, container, transitioning ]);
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  });
+
+  if (container) {
+    const classNames = [ 'overlay' ];
+    if (show && transitioning) {
+      classNames.push('show');
+    } else {
+      classNames.push('hide');
+    }
+    if (className) {
+      classNames.push(className);
+    }
+    const containerProps = {
+      className: classNames.join(' '),
+      onClick: handleClick,
+      onTouchMove: handleTouchMove,
+      onTransitionEnd: handleTransitionEnd,
+      ...otherProps
+    };
+    const overlay = (
+      <div {...containerProps}>
+        <div className="background" />
+        <div className="foreground">{contents}</div>
+      </div>
     );
+    return ReactDOM.createPortal(overlay, container);
+  } else {
+    return null;
+  }
 }
+
+Overlay.create = function(Component) {
+  const newComponent = function (props) {
+    const { show, onCancel, onClose } = props;
+    const overlayProps = { show, onBackgroundClick: onCancel || onClose };
+    const contents = (show) ? <Component {...props} /> : undefined;
+    return <Overlay {...overlayProps}>{contents}</Overlay>;
+  };
+
+  let componentName = 'Contents';
+  if (typeof(Component) === 'function') {
+    if (Component.name) {
+      componentName = Component.name;
+    } else {
+      Object.defineProperty(Component, 'name', {
+        value: componentName,
+        writable: false
+      });
+    }
+  } else if (Component.displayName) {
+    componentName = Component.displayName;
+  }
+
+  // set display name
+  Object.defineProperty(newComponent, 'name', {
+    value: `Overlay(${componentName})`,
+    writable: false
+  });
+  return newComponent;
+};

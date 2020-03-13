@@ -1,94 +1,94 @@
 .app-component {
+  padding: 0.5em 0.5em 0.5em 0.5em;
+  border: 2px solid #211a1a;
+  background-color: #362a2a;
+  width: 100%;
+  break-inside: avoid-column;
+  page-break-inside: avoid;
+  margin-bottom: 1em;
+
+  .description {
+    display: flex;
+    flex-direction: row;
+    border: 1px solid #211a1a;
+    margin-bottom: 0.5em;
+    background-color: #cccccc;
+    cursor: pointer;
+
+    .picture {
+      flex-grow: 0;
+      flex-shrink: 0;
+
+      .icon {
+        display: inline-block;
+        color: #000000;
+        background-color: #fca326;
+        height: 4em;
+        width: 4em;
+        padding-top: 1em;
+        text-align: center;
+
+        .fa {
+          font-size: 2em;
+        }
+      }
+
+      IMG {
+        display: block;
+        width: auto;
+        height: 4em;
+      }
+    }
+
+    .text {
+      flex-grow: 1;
+      flex-shrink: 1;
+
+      font-size: 1em;
+      margin: 0.25em 0.25em 0 0.40em;
+      overflow: hidden;
+      height: calc(3em + 10px);
+
+      .text-contents {
+        width: calc(100% - 1em);
+        position: relative;
+        display: block;
+        max-height: 4em;
+
+        .ellipsis {
+          position: absolute;
+          right: -1em;
+          top: calc(7em - 100%);
+          text-align: left;
+          vertical-align: bottom;
+        }
+
+        H1, H2, H3, H4, H5 {
+          font-size: 1em;
+          margin-top: 0;
+          margin-bottom: 0.2em;
+        }
+
+        P {
+          margin-top: 0;
+        }
+      }
+
+      &.missing-language {
+        opacity: 0.25;
+      }
+    }
+  }
+
+  .file-list {
+    max-height: 8em;
+    overflow-y: auto;
+    border: 1px solid #211a1a;
+    background-color: #999999;
     padding: 0.5em 0.5em 0.5em 0.5em;
-    border: 2px solid #211a1a;
-    background-color: #362a2a;
-    width: 100%;
-    break-inside: avoid-column;
-    page-break-inside: avoid;
-    margin-bottom: 1em;
 
-    .description {
-        display: flex;
-        flex-direction: row;
-        border: 1px solid #211a1a;
-        margin-bottom: 0.5em;
-        background-color: #cccccc;
-        cursor: pointer;
-
-        .picture {
-            flex-grow: 0;
-            flex-shrink: 0;
-
-            .icon {
-                display: inline-block;
-                color: #000000;
-                background-color: #fca326;
-                height: 4em;
-                width: 4em;
-                padding-top: 1em;
-                text-align: center;
-
-                .fa {
-                    font-size: 2em;
-                }
-            }
-
-            IMG {
-                display: block;
-                width: auto;
-                height: 4em;
-            }
-        }
-
-        .text {
-            flex-grow: 1;
-            flex-shrink: 1;
-
-            font-size: 1em;
-            margin: 0.25em 0.25em 0 0.40em;
-            overflow: hidden;
-            height: calc(3em + 10px);
-
-            .text-contents {
-                width: calc(100% - 1em);
-                position: relative;
-                display: block;
-                max-height: 4em;
-
-                .ellipsis {
-                    position: absolute;
-                    right: -1em;
-                    top: calc(7em - 100%);
-                    text-align: left;
-                    vertical-align: bottom;
-                }
-
-                H1, H2, H3, H4, H5 {
-                    font-size: 1em;
-                    margin-top: 0;
-                    margin-bottom: 0.2em;
-                }
-
-                P {
-                    margin-top: 0;
-                }
-            }
-
-            &.missing-language {
-                opacity: 0.25;
-            }
-        }
+    .tree-node-file {
+      color: #000000;
     }
-
-    .file-list {
-        max-height: 8em;
-        overflow-y: auto;
-        border: 1px solid #211a1a;
-        background-color: #999999;
-        padding: 0.5em 0.5em 0.5em 0.5em;
-
-        .tree-node-file {
-            color: #000000;
-        }
-    }
+  }
 }

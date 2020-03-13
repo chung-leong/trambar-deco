@@ -1,64 +1,54 @@
-var _ = require('lodash');
-var Promise = require('bluebird');
-var React = require('react'), PropTypes = React.PropTypes;
+import React from 'react';
+import { useListener } from 'relaks';
 
-require('./font-awesome-icon.scss');
+import './font-awesome-icon.scss';
 
-module.exports = React.createClass({
-    displayName: 'FontAwesomeIcon',
-    propTypes: {
-        className: PropTypes.string.isRequired,
-        selected: PropTypes.bool,
+export function FontAwesomeIcon(props) {
+  const { className, selected, onSelect } = props;
 
-        onSelect: PropTypes.func,
-    },
-
-    statics: {
-        getClassNames: function() {
-            var classes = [];
-            _.each(document.styleSheets, (styleSheet) => {
-                _.each(styleSheet.rules, (rule) => {
-                    if (rule.style) {
-                        // don't add a class if the character employed for the
-                        // icon is already there
-                        var text = rule.style.content;
-                        if (text && !_.some(classes, { text })) {
-                            var selector = rule.selectorText;
-                            var matches = selector.match(/\.(fa-\S+)::before/g);
-                            var first = _.first(_.sortBy(matches, 'length'));
-                            var className = first.slice(1, -8);
-                            classes.push({ className, text })
-                        }
-                    }
-                });
-            });
-            classes = _.sortBy(classes, 'text');
-            return _.map(classes, 'className');
-        }
-    },
-
-    render: function() {
-        var className = 'font-awesome-icon';
-        if (this.props.selected) {
-            className += ' selected';
-        }
-        var iconClassName = this.props.className;
-        var label = iconClassName.substr(3);
-        return (
-            <div className={className} onClick={this.handleClick} title={label}>
-                <i className={`fa ${iconClassName} fa-fw`}/>
-                <div className="label">{label}</div>
-            </div>
-        );
-    },
-
-    handleClick: function() {
-        if (this.props.onSelect) {
-            this.props.onSelect({
-                type: 'select',
-                target: this,
-                className: this.props.className,
-            });
-        }
+  const handleClick = useListener((evt) => {
+    if (onSelect) {
+      onSelect({ className });
     }
-});
+  });
+
+  const classNames = [ 'font-awesome-icon' ];
+  if (selected) {
+    classNames.push('selected');
+  }
+  const label = className.substr(3);
+  return (
+    <div className={classNames.join(' ')} onClick={handleClick} title={label}>
+      <i className={`fa ${className} fa-fw`}/>
+      <div className="label">{label}</div>
+    </div>
+  );
+}
+
+function getClassNames() {
+  const classes = [];
+  for (let styleSheet of document.styleSheets) {
+    for (let rule of styleSheet.rules) {
+      if (rule.style) {
+        // don't add a class if the character employed for the
+        // icon is already there
+        const text = rule.style.content;
+        if (text && !classes.find((c) => c.text === text)) {
+          const selector = rule.selectorText;
+          const matches = selector.match(/\.(fa-\S+)::before/g);
+          matches.sort((a, b) => a.length - b.length);
+          const first = matches[0];
+          const className = first.slice(1, -8);
+          classes.push({ className, text })
+        }
+      }
+    }
+  }
+  classes.sort((a, b) => a.className.localeCompare(b.className));
+  const names = classes.map(c => c.className);
+  return names;
+}
+
+export {
+  getClassNames
+};

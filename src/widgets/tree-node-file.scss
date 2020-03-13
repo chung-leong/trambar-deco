@@ -1,36 +1,36 @@
 .tree-node-file {
-    color: #ee6666;
-    white-space: nowrap;
-    margin: 1px 0 1px 0;
+  color: #ee6666;
+  white-space: nowrap;
+  margin: 1px 0 1px 0;
 
-    .badges {
-        display: inline-block;
-        font-size: 0.6em;
-        margin-left: 0.5em;
+  .badges {
+    display: inline-block;
+    font-size: 0.6em;
+    margin-left: 0.5em;
 
-        .badge {
-            display: inline-block;
-            border-radius: 1em;
-            padding: 0.1em 0.4em 0.1em 0.4em;
-            margin-left: 0.5em;
-            color: #000000;
-            cursor: pointer;
+    .badge {
+      display: inline-block;
+      border-radius: 1em;
+      padding: 0.1em 0.4em 0.1em 0.4em;
+      margin-left: 0.5em;
+      color: #000000;
+      cursor: pointer;
 
-            &:nth-of-type(3n+1) {
-                background-color: #00ff33;
-            }
+      &:nth-of-type(3n+1) {
+        background-color: #00ff33;
+      }
 
-            &:nth-of-type(3n+2) {
-                background-color: #ff3300;
-            }
+      &:nth-of-type(3n+2) {
+        background-color: #ff3300;
+      }
 
-            &:nth-of-type(3n+3) {
-                background-color: #0033ff;
-            }
-        }
+      &:nth-of-type(3n+3) {
+        background-color: #0033ff;
+      }
     }
+  }
 
-    &.decorated {
-        color: #00cc66;
-    }
+  &.decorated {
+    color: #00cc66;
+  }
 }

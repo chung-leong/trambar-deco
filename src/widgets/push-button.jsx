@@ -1,20 +1,19 @@
-var React = require('react'), PropTypes = React.PropTypes;
+import React from 'react';
 
-require('./push-button.scss');
+import './push-button.scss';
 
-module.exports = PushButton;
-
-function PushButton(props) {
-    if (props.hidden) {
-        return null;
-    }
-    var classNames = [ 'push-button' ];
-    if (props.emphasized) {
-        classNames.push('emphasized');
-    }
-    return (
-        <button className={classNames.join(' ')} disabled={props.disabled} onClick={props.onClick}>
-            {props.label}
-        </button>
-    );
+export function PushButton(props) {
+  const { label, hidden, disabled, emphasized, onClick } = props;
+  if (hidden) {
+    return null;
+  }
+  const classNames = [ 'push-button' ];
+  if (emphasized) {
+    classNames.push('emphasized');
+  }
+  return (
+    <button className={classNames.join(' ')} disabled={disabled} onClick={onClick}>
+      {label}
+    </button>
+  );
 }

@@ -1,44 +1,44 @@
 .font-awesome-dialog-box {
-    display: flex;
-    flex-direction: column;
-    max-height: 80%;
-    max-width: 100%;
-    background-color: #362a2a;
-    box-shadow: 2px 2px 2px #000000;
-    color: #999999;
-    margin: auto;
-    padding: 0.5em 0.5em 0.5em 0.5em;
+  display: flex;
+  flex-direction: column;
+  max-height: 80%;
+  max-width: 100%;
+  background-color: #362a2a;
+  box-shadow: 2px 2px 2px #000000;
+  color: #999999;
+  margin: auto;
+  padding: 0.5em 0.5em 0.5em 0.5em;
 
-    .form {
-        flex-grow: 1;
-        flex-shrink: 1;
-        margin-bottom: -0.3em;
+  .form {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin-bottom: -0.3em;
 
-        .icon {
-            float: right;
-            font-size: 2em;
-            padding: 0.2em 0.2em 0.2em 0.2em;
-        }
-
-        .input {
-            margin-bottom: 0.5em;
-
-            LABEL {
-                display: block;
-                margin-bottom: 0.2em;
-            }
-
-            INPUT[type=text] {
-                width: 20em;
-            }
-        }
+    .icon {
+      float: right;
+      font-size: 2em;
+      padding: 0.2em 0.2em 0.2em 0.2em;
     }
 
-    .buttons {
-        flex-grow: 0;
-        flex-shrink: 0;
-        padding: 0.4em 0 0.2em 0.2em;
-        text-align: right;
-        border-top: 1px solid #666666;
+    .input {
+      margin-bottom: 0.5em;
+
+      LABEL {
+        display: block;
+        margin-bottom: 0.2em;
+      }
+
+      INPUT[type=text] {
+        width: 20em;
+      }
     }
+  }
+
+  .buttons {
+    flex-grow: 0;
+    flex-shrink: 0;
+    padding: 0.4em 0 0.2em 0.2em;
+    text-align: right;
+    border-top: 1px solid #666666;
+  }
 }

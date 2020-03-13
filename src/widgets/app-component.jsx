@@ -1,146 +1,120 @@
-var _ = require('lodash');
-var React = require('react'), PropTypes = React.PropTypes;
-var MarkGor = require('mark-gor/react');
+import React from 'react';
+import { useListener } from 'relaks';
+import { parse } from 'mark-gor';
 
-var TreeNodeFile = require('widgets/tree-node-file');
+import { TreeNodeFile } from './tree-node-file.jsx';
 
-require('./app-component.scss');
+import './app-component.scss';
 
-module.exports = React.createClass({
-    displayName: 'AppComponent',
-    propTypes: {
-        component: PropTypes.object.isRequired,
-        languageCode: PropTypes.string.isRequired,
-        onSelect: PropTypes.func,
-    },
+export function AppComponent(props) {
+  const { component, languageCode, onSelect } = props;
 
-    /**
-     * Render component
-     *
-     * @return {ReactElement}
-     */
-    render: function() {
-        return (
-            <div className="app-component">
-                {this.renderDescription()}
-                {this.renderAssociatedFiles()}
-            </div>
-        );
-    },
+  const handleClick = useListener((evt) => {
+    if (onSelect) {
+      onSelect({ id: component.id });
+    }
+  });
 
-    /**
-     * Render component discription
-     *
-     * @return {ReactElement}
-     */
-    renderDescription: function() {
-        return (
-            <div className="description" onClick={this.handleClick}>
-                {this.renderPicture()}
-                {this.renderText()}
-            </div>
-        );
-    },
+  return (
+    <div className="app-component">
+      {renderDescription()}
+      {renderAssociatedFiles()}
+    </div>
+  );
 
-    /**
-     * Render icon or image
-     *
-     * @return {ReactElement}
-     */
-    renderPicture: function() {
-        var component = this.props.component;
-        if (component.image) {
-            var url = component.image.url;
-            return (
-                <div className="picture">
-                    <img src={url} />
-                </div>
-            );
-        } else {
-            var icon = component.icon || {};
-            var iconClassName = icon.class || 'fa-cubes';
-            var style = {
-                color: icon.color,
-                backgroundColor: icon.backgroundColor,
-            };
-            return (
-                <div className="picture">
-                    <div className="icon" style={style}>
-                        <i className={`fa fa-fw ${iconClassName}`} />
-                    </div>
-                </div>
-            );
-        }
-    },
+  /**
+   * Render component discription
+   *
+   * @return {ReactElement}
+   */
+  function renderDescription() {
+    return (
+      <div className="description" onClick={handleClick}>
+        {renderPicture()}
+        {renderText()}
+      </div>
+    );
+  }
 
-    /**
-     * Render text description of component, formatted as Markdown
-     *
-     * @return {ReactElement}
-     */
-    renderText: function() {
-        var className = 'text';
-        var versions = this.props.component.text;
-        var text = _.get(versions, this.props.languageCode);
-        if (text === undefined) {
-            text = _.first(_.values(versions)) || '';
-            className += ' missing-language';
-        }
-        var elements = MarkGor.parse(text);
-        return (
-            <div className={className}>
-                <div className="text-contents">
-                    {elements}
-                    <div className="ellipsis">
-                        <i className="fa fa-ellipsis-h" />
-                    </div>
-                </div>
-            </div>
-        );
-    },
+  /**
+   * Render icon or image
+   *
+   * @return {ReactElement}
+   */
+  function renderPicture() {
+    const { image, icon = {} } = component;
+    if (image) {
+      var url = component.image.url;
+      return (
+        <div className="picture">
+          <img src={url} />
+        </div>
+      );
+    } else {
+      const iconClassName = icon.class || 'fa-cubes';
+      const style = {
+        color: icon.color,
+        backgroundColor: icon.backgroundColor,
+      };
+      return (
+        <div className="picture">
+          <div className="icon" style={style}>
+            <i className={`fa fa-fw ${iconClassName}`} />
+          </div>
+        </div>
+      );
+    }
+  }
 
-    /**
-     * Render list of files associated with component
-     *
-     * @return {ReactElement}
-     */
-    renderAssociatedFiles: function() {
-        var files = this.props.component.files;
-        return (
-            <div className="file-list">
-                {_.map(files, this.renderAssociatedFile)}
-            </div>
-        );
-    },
+  /**
+   * Render text description of component, formatted as Markdown
+   *
+   * @return {ReactElement}
+   */
+  function renderText() {
+    const classNames = [ 'text' ];
+    const versions = component.text || {};
+    const text = versions[languageCode];
+    if (text === undefined) {
+      text = Object.values(versions)[0] || '';
+      classNames.push('missing-language');
+    }
+    const contents = parse(text);
+    return (
+      <div className={classNames.join(' ')}>
+        <div className="text-contents">
+          {contents}
+          <div className="ellipsis">
+            <i className="fa fa-ellipsis-h" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-    /**
-     * Render one file on the list
-     *
-     * @param  {String} file
-     * @param  {Number} index
-     *
-     * @return {ReactElement}
-     */
-    renderAssociatedFile: function(file, index) {
-        var props = {
-            key: index,
-            file,
-        };
-        return <TreeNodeFile {...props} />;
-    },
+  /**
+   * Render list of files associated with component
+   *
+   * @return {ReactElement}
+   */
+  function renderAssociatedFiles() {
+    const { files = [] } = component;
+    return (
+      <div className="file-list">
+        {files.map(renderAssociatedFile)}
+      </div>
+    );
+  }
 
-    /**
-     * Called when user clicks on component description
-     *
-     * @param  {Event} evt
-     */
-    handleClick: function(evt) {
-        if (this.props.onSelect) {
-            this.props.onSelect({
-                type: 'select',
-                target: this,
-                id: this.props.component.id,
-            });
-        }
-    },
-});
+  /**
+   * Render one file on the list
+   *
+   * @param  {String} file
+   * @param  {Number} index
+   *
+   * @return {ReactElement}
+   */
+  function renderAssociatedFile(file, index) {
+    return <TreeNodeFile key={index} file={file} />;
+  }
+}

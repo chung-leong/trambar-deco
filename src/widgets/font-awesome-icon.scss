@@ -1,26 +1,26 @@
 .font-awesome-icon {
-    display: inline-block;
-    position: relative;
-    padding: 0.2em 0.2em 0.2em 0.2em;
-    border: 1ps solid #666666;
-    background-color: rgba(0,0,0,0.1);
-    color: #eeeeee;
-    font-size: 2em;
-    margin: 0.1em 0.1em 0.1em 0.1em;
-    cursor: pointer;
+  display: inline-block;
+  position: relative;
+  padding: 0.2em 0.2em 0.2em 0.2em;
+  border: 1ps solid #666666;
+  background-color: rgba(0,0,0,0.1);
+  color: #eeeeee;
+  font-size: 2em;
+  margin: 0.1em 0.1em 0.1em 0.1em;
+  cursor: pointer;
 
-    &.selected {
-        color: #000000;
-        background-color: #fca326;
-    }
+  &.selected {
+    color: #000000;
+    background-color: #fca326;
+  }
 
-    .label {
-        width: 4.2em;
-        color: #999999;
-        font-size: 0.3em;
-        text-align: center;
-        text-overflow: ellipsis;
-        overflow: hidden;
-        white-space: nowrap;
-    }
+  .label {
+    width: 4.2em;
+    color: #999999;
+    font-size: 0.3em;
+    text-align: center;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+  }
 }

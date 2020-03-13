@@ -1,437 +1,359 @@
-var _ = require('lodash');
-var Promise = require('bluebird');
-var React = require('react'), PropTypes = React.PropTypes;
-var SockJS = require('sockjs-client');
-var Masonry = require('react-masonry-component');
+import React, { useState, useMemo, useEffect } from 'react';
+import { useListener, useAsyncEffect, useEventTime } from 'relaks';
+import SockJS from 'sockjs-client';
 
 // widgets
-var AppComponent = require('widgets/app-component');
-var AppComponentDialogBox = require('widgets/app-component-dialog-box');
-var TreeNodeFolder = require('widgets/tree-node-folder');
-var FontAwesomeIcon = require('widgets/font-awesome-icon');
-var FontAwesomeDialogBox = require('widgets/font-awesome-dialog-box');
+import { AppComponent } from './widgets/app-component.jsx';
+import { AppComponentDialogBox } from './widgets/app-component-dialog-box.jsx';
+import { TreeNodeFolder } from './widgets/tree-node-folder.jsx';
+import { FontAwesomeIcon, getClassNames } from './widgets/font-awesome-icon.jsx';
+import { FontAwesomeDialogBox } from './widgets/font-awesome-dialog-box.jsx';
 
-require('font-awesome-webpack');
-require('application.scss');
+import 'font-awesome/scss/font-awesome.scss';
+import 'application.scss';
 
-module.exports = React.createClass({
-    displayName: 'Application',
+export function Application(props) {
+  const [ view, setView ] = useState(getViewFromHash);
+  const [ data, setData ] = useState({ folder: { children: [] } });
+  const [ availableLanguages, setAvailableLanguages ] = useState([]);
+  const [ languageCode, setLanguageCode ] = useState(() => {
+    return localStorage.languageCode || getBrowserLanguage();
+  });
+  const [ dialog, setDialog ] = useState(false);
+  const [ reconnect, setReconnect ] = useEventTime();
+  const [ dataChanged, setDataChanged ] = useEventTime();
+  const components = useMemo(() => {
+    const { components = [] } = data;
+    components.sort((a, b) => {
+      return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+    });
+    return components;
+  }, [ data ]);
+  const iconClassNames = useMemo(() => {
+    const list = getClassNames();
+    return list;
+  });
 
-    /**
-     * Return initial state
-     *
-     * @return {Object}
-     */
-    getInitialState: function() {
-        return {
-            view: this.getViewFromHash(),
-            data: {},
-            languageCodes: [],
-            selectedLanguageCode: localStorage.languageCode || getBrowserLanguage() || 'en',
-            selectedIcon: '',
-            selectedComponentId: '',
-            showingDialog: false,
-        };
-    },
+  const handleComponentSelect = useListener((evt) => {
+    const { id } = evt;
+    setDialog({ type: 'component', id });
+  });
+  const handleIconSelect = useListener((evt) => {
+    const { className } = evt;
+    setDialog({ type: 'icon', className });
+  });
+  const handleLanguageClick = useListener((evt) => {
+    const { lang } = evt.currentTarget;
+    localStorage.languageCode = lang;
+    setLanguageCode(lang);
+  });
+  const handleDialogClose = useListener((evt) => {
+    setDialog(null);
+  });
+  const handleButtonClick = useListener((evt) => {
+    const hash = evt.currentTarget.getAttribute('href');
+    setView(hash.substr(1));
+    history.pushState({}, '', hash);
+    evt.preventDefault();
+  });
+  const handlePopState = useListener((evt) => {
+    const view = getViewFromHash();
+    setView(view);
+  });
 
-    /**
-     * Establish Websocket connection
-     */
-    requestNotification: function() {
-        this.socket = new SockJS('socket');
-        this.socket.onopen = (evt) => {
-        };
-        this.socket.onmessage = (evt) => {
-            if (evt.data === 'change') {
-                this.retrieveData();
-            }
-        };
-        this.socket.onclose = () => {
-            this.socket = null;
-            setTimeout(() => {
-                this.requestNotification();
-            }, 5000);
-        };
-    },
+  useEffect(() => {
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+  useEffect(() => {
+    const socket = new SockJS('socket');
+    socket.onmessage = (evt) => {
+      if (evt.data === 'change') {
+        setDataChanged();
+      }
+    };
+    socket.onclose = () => {
+      setTimeout(setReconnect, 5000);
+    };
+  }, [ reconnect ]);
+  useAsyncEffect(async () => {
+    const res = await fetch('data');
+    const data = await res.json();
+    setData(data);
 
-    /**
-     * Retrieve data from Node.js script
-     */
-    retrieveData: function() {
-        var xhr = new XMLHttpRequest();
-        xhr.responseType = 'json';
-        xhr.open('GET', 'data');
-        xhr.send();
-        xhr.onload = (evt) => {
-            var data = evt.target.response;
-            if (!_.isEqual(data, this.state.data)) {
-                var languageCodes = [];
-                _.each(data.components, (component) => {
-                    _.each(_.keys(component.text), (code) => {
-                        if (!_.includes(languageCodes, code)) {
-                            languageCodes.push(code);
-                        }
-                    });
-                });
-                var selectedLanguageCode = this.state.selectedLanguageCode;
-                if (!_.includes(languageCodes, selectedLanguageCode)) {
-                    selectedLanguageCode = _.first(languageCodes);
-                }
-                languageCodes.sort();
-                this.setState({ data, languageCodes, selectedLanguageCode });
-            }
-        };
-    },
-
-    /**
-     * Connect to Node.js script on mount
-     */
-    componentWillMount: function() {
-        this.retrieveData();
-        this.requestNotification();
-    },
-
-    /**
-     * Render component
-     *
-     * @return {ReactElement}
-     */
-    render: function() {
-        return (
-            <div className="application">
-                {this.renderSideNavigation()}
-                {this.renderContents()}
-            </div>
-        );
-    },
-
-    /**
-     * Render side navigation
-     *
-     * @return {ReactElement}
-     */
-    renderSideNavigation: function() {
-        var componentsProps = {
-            icon: 'cubes',
-            selected: (this.state.view === 'components'),
-            title: 'Components',
-            url: '#components',
-            onClick: this.handleComponentsButtonClick,
-        };
-        var sourceTreeProps = {
-            icon: 'files-o',
-            selected: (this.state.view === 'source-tree'),
-            title: 'Source tree',
-            url: '#source-tree',
-            onClick: this.handleSourceTreeButtonClick,
-        };
-        var iconsProps = {
-            icon: 'flag',
-            selected: (this.state.view === 'icons'),
-            title: 'Font Awesome icons',
-            url: '#icons',
-            onClick: this.handleIconsButtonClick,
-        };
-        return (
-            <div className="side-navigation">
-                <SideButton {...componentsProps} />
-                <SideButton {...sourceTreeProps} />
-                <SideButton {...iconsProps} />
-                {this.renderLanguageButtons()}
-            </div>
-        );
-    },
-
-    /**
-     * Render currently selected view
-     *
-     * @return {ReactElement}
-     */
-    renderContents: function() {
-        switch (this.state.view) {
-            case 'components': return this.renderComponents();
-            case 'source-tree': return this.renderSourceTree();
-            case 'icons': return this.renderIcons();
+    const availableLanguages = [];
+    for (let component of data.components) {
+      for (let [ code ] of Object.keys(component.text)) {
+        if (!availableLanguages.indexOf(code)) {
+          availableLanguages.push(code);
         }
-    },
+      }
+    }
+    availableLanguages.sort();
+    setAvailableLanguages(availableLanguages);
 
-    /**
-     * Render list of components
-     *
-     * @return {ReactElement}
-     */
-    renderComponents: function() {
-        var components = _.sortBy(this.state.data.components, (component) => {
-            return _.toLower(component.text.en);
-        });
-        var selectedComponent = _.find(components, { id: this.state.selectedComponentId });
-        var dialogProps = {
-            show: this.state.showingDialog,
-            component: selectedComponent,
-            languageCode: this.state.selectedLanguageCode,
-            onClose: this.handleDialogClose,
-        };
-        return (
-            <div className="page-view-port">
-                <div className="components">
-                    {_.map(components, this.renderComponent)}
-                </div>
-                <AppComponentDialogBox {...dialogProps} />
-            </div>
-        );
-    },
+    if (availableLanguages.indexOf(languageCode) === -1) {
+      if (availableLanguages.length > 0) {
+        setLanguageCode(availableLanguages[0])
+      }
+    }
+  }, [ dataChanged ]);
 
-    /**
-     * Render individual component
-     *
-     * @param  {Object} component
-     * @param  {Number} index
-     *
-     * @return {ReactElement}
-     */
-    renderComponent: function(component, index) {
-        var props = {
-            key: index,
-            component,
-            languageCode: this.state.selectedLanguageCode,
-            onSelect: this.handleComponentSelect,
-        };
-        return <AppComponent {...props} />;
-    },
+  return (
+    <div className="application">
+      {renderSideNavigation()}
+      {renderContents()}
+    </div>
+  );
 
-    /**
-     * Render source tree
-     *
-     * @return {ReactElement}
-     */
-    renderSourceTree: function() {
-        var components = this.state.data.components;
-        var selectedComponent = _.find(components, { id: this.state.selectedComponentId });
-        var dialogProps = {
-            show: this.state.showingDialog,
-            component: selectedComponent,
-            languageCode: this.state.selectedLanguageCode,
-            onClose: this.handleDialogClose,
-        };
-        var treeNodeProps = {
-            folder: this.state.data.folder,
-            root: this.state.data.root,
-            onSelect: this.handleComponentSelect,
-        };
-        return (
-            <div className="page-view-port">
-                <TreeNodeFolder {...treeNodeProps} />;
-                <AppComponentDialogBox {...dialogProps} />
-            </div>
-        );
-    },
-
-    /**
-     * Render list of Font Awesome icons
-     *
-     * @return {ReactElement}
-     */
-    renderIcons: function() {
-        var classNames = FontAwesomeIcon.getClassNames();
-        var dialogProps = {
-            show: this.state.showingDialog,
-            iconClassName: this.state.selectedIcon,
-            onClose: this.handleDialogClose,
-        };
-        return (
-            <div className="page-view-port">
-                {_.map(classNames, this.renderIcon)}
-                <FontAwesomeDialogBox {...dialogProps} />
-            </div>
-        );
-    },
-
-    /**
-     * Render Font Awesome icon
-     *
-     * @param  {String} className
-     * @param  {Number} index
-     *
-     * @return {ReactElement}
-     */
-    renderIcon: function(className, index) {
-        var iconProps = {
-            key: index,
-            className,
-            selected: (className === this.state.selectedIcon),
-            onSelect: this.handleIconSelect,
-        };
-        return <FontAwesomeIcon {...iconProps} />
-    },
-
-    /**
-     * Render buttons for selecting language
-     *
-     * @return {ReactElement}
-     */
-    renderLanguageButtons: function() {
-        var buttons = _.map(this.state.languageCodes, (code) => {
-            var props = {
-                className: 'language-button',
-                lang: code,
-                onClick: this.handleLanguageClick
-            };
-            if (code === this.state.selectedLanguageCode) {
-                props.className += ' selected';
-            }
-            return (
-                <div key={code} {...props}>
-                    {code}
-                </div>
-            );
-        });
-        return <div className="language-buttons">{buttons}</div>;
-    },
-
-    /**
-     * Add event handler on mount
-     */
-    componentDidMount: function() {
-        window.addEventListener('popstate', this.handlePopState);
-    },
-
-    /**
-     * Get current view from URL hash
-     *
-     * @return {String}
-     */
-    getViewFromHash: function() {
-        switch (location.hash) {
-            case '#icons': return 'icons';
-            case '#source-tree': return 'source-tree';
-            case '#components':
-            default: return 'components';
-        }
-    },
-
-    /**
-     * Change the view
-     *
-     * @param  {String} name
-     */
-    setView: function(view) {
-        this.setState({ view }, () => {
-            history.pushState({}, '', '#' + view);
-        });
-    },
-
-    handlePopState: function() {
-        var view = this.getViewFromHash();
-        this.setState({ view });
-    },
-
-    /**
-     * Called when user clicks components button
-     *
-     * @param  {Event} evt
-     */
-    handleComponentsButtonClick: function(evt) {
-        this.setView('components');
-        evt.preventDefault();
-    },
-
-    /**
-     * Called when user clicks source tree button
-     *
-     * @param  {Event} evt
-     */
-    handleSourceTreeButtonClick: function(evt) {
-        this.setView('source-tree');
-        evt.preventDefault();
-    },
-
-    /**
-     * Called when user clicks icons button
-     *
-     * @param  {Event} evt
-     */
-    handleIconsButtonClick: function(evt) {
-        this.setView('icons');
-        evt.preventDefault();
-    },
-
-    /**
-     * Called when user selects a component
-     *
-     * @param  {Object} evt
-     */
-    handleComponentSelect: function(evt) {
-        this.setState({
-            showingDialog: true,
-            selectedComponentId: evt.id,
-        });
-    },
-
-    /**
-     * Called when user selects an icon
-     *
-     * @param  {Object} evt
-     */
-    handleIconSelect: function(evt) {
-        this.setState({
-            showingDialog: true,
-            selectedIcon: evt.className,
-        });
-    },
-
-    /**
-     * Called when user clicks a language button
-     *
-     * @param  {Object} evt
-     */
-    handleLanguageClick: function(evt) {
-        var selectedLanguageCode = evt.currentTarget.lang;
-        localStorage.languageCode = selectedLanguageCode;
-        this.setState({ selectedLanguageCode });
-    },
-
-    /**
-     * Called when user closes a dialog box
-     *
-     * @param  {Event} evt
-     */
-    handleDialogClose: function(evt) {
-        this.setState({
-            showingDialog: false,
-            selectedIcon: '',
-        });
-    },
-});
-
-function SideButton(props) {
-    var buttonProps = {
-        className: 'button' + (props.selected ? ' selected' : ''),
-        title: props.title,
-        onClick: props.onClick,
-        href: props.url,
+  /**
+   * Render side navigation
+   *
+   * @return {ReactElement}
+   */
+  function renderSideNavigation() {
+    const componentsProps = {
+      icon: 'cubes',
+      selected: (view === 'components'),
+      title: 'Components',
+      url: '#components',
+      onClick: handleButtonClick,
+    };
+    const sourceTreeProps = {
+      icon: 'files-o',
+      selected: (view === 'source-tree'),
+      title: 'Source tree',
+      url: '#source-tree',
+      onClick: handleButtonClick,
+    };
+    const iconsProps = {
+      icon: 'flag',
+      selected: (view === 'icons'),
+      title: 'Font Awesome icons',
+      url: '#icons',
+      onClick: handleButtonClick,
     };
     return (
-        <a {...buttonProps}>
-            <i className={`fa fa-${props.icon} fa-fw`} />
-        </a>
+      <div className="side-navigation">
+        <SideButton {...componentsProps} />
+        <SideButton {...sourceTreeProps} />
+        <SideButton {...iconsProps} />
+        {renderLanguageButtons()}
+      </div>
     );
+  }
+
+  /**
+   * Render currently selected view
+   *
+   * @return {ReactElement}
+   */
+  function renderContents() {
+    switch (view) {
+      case 'components': return renderComponents();
+      case 'source-tree': return renderSourceTree();
+      case 'icons': return renderIcons();
+    }
+  }
+
+  /**
+   * Render list of components
+   *
+   * @return {ReactElement}
+   */
+  function renderComponents() {
+    return (
+      <div className="page-view-port">
+        <div className="components">
+          {components.map(renderComponent)}
+        </div>
+        {renderComponentDialogBox()}
+      </div>
+    );
+  }
+
+  /**
+   * Render individual component
+   *
+   * @param  {Object} component
+   * @param  {Number} index
+   *
+   * @return {ReactElement}
+   */
+  function renderComponent(component, index) {
+    const props = {
+      key: index,
+      component,
+      languageCode,
+      onSelect: handleComponentSelect,
+    };
+    return <AppComponent {...props} />;
+  }
+
+  /**
+   * Render source tree
+   *
+   * @return {ReactElement}
+   */
+  function renderSourceTree() {
+    const { folder, root } = data;
+    const props = {
+      folder,
+      root,
+      onSelect: handleComponentSelect,
+    };
+    return (
+      <div className="page-view-port">
+        <TreeNodeFolder {...props} />;
+        {renderComponentDialogBox()}
+      </div>
+    );
+  }
+
+  function renderComponentDialogBox() {
+    const show = (dialog && dialog.type === 'component');
+    const component = (show) ? components.find(c => c.id === dialog.id) : null;
+    const props = {
+      show,
+      component,
+      languageCode,
+      onClose: handleDialogClose,
+    };
+    return <AppComponentDialogBox {...props} />;
+  }
+
+  /**
+   * Render list of Font Awesome icons
+   *
+   * @return {ReactElement}
+   */
+  function renderIcons() {
+    return (
+      <div className="page-view-port">
+        {iconClassNames.map(renderIcon)}
+        {renderIconDialogBox()}
+      </div>
+    );
+  }
+
+  /**
+   * Render Font Awesome icon
+   *
+   * @param  {String} className
+   * @param  {Number} index
+   *
+   * @return {ReactElement}
+   */
+  function renderIcon(className, index) {
+    const show = (dialog && dialog.type === 'icon');
+    const props = {
+      key: index,
+      className,
+      selected: (show) ? dialog.className === className : false,
+      onSelect: handleIconSelect,
+    };
+    return <FontAwesomeIcon {...props} />
+  }
+
+  /**
+   * Render icon dialog box
+   *
+   * @return {ReactElement}
+   */
+  function renderIconDialogBox() {
+    const show = (dialog && dialog.type === 'icon');
+    const iconClassName = (show) ? dialog.className : '';
+    const props = {
+      show,
+      iconClassName,
+      onClose: handleDialogClose,
+    };
+    return <FontAwesomeDialogBox {...props} />;
+  }
+
+  /**
+   * Render buttons for selecting language
+   *
+   * @return {ReactElement}
+   */
+  function renderLanguageButtons() {
+    return (
+      <div className="language-buttons">
+        {availableLanguages.map(renderLanguageButton)}
+      </div>
+    );
+  }
+
+  /**
+   * Render a language button for selecting language
+   *
+   * @return {ReactElement}
+   */
+  function renderLanguageButton(code, index) {
+    const classNames = [ 'language-button' ];
+    if (code === languageCode) {
+      classNames.push('selected');
+    }
+    return (
+      <div key={code} classNames={classNames.push} lang={code} onClick={handleLanguageClick}>
+        {code}
+      </div>
+    );
+  }
 }
 
+function SideButton(props) {
+  const { selected, title, url, icon, onClick} = props;
+  const classNames = [ 'button' ];
+  if (selected) {
+    classNames.push('selected');
+  }
+  return (
+    <a className={classNames.join(' ')} href={url} title={title} onClick={onClick}>
+      <i className={`fa fa-${icon} fa-fw`} />
+    </a>
+  );
+}
+
+/**
+ * Get current view from URL hash
+ *
+ * @return {String}
+ */
+function getViewFromHash() {
+  switch (location.hash) {
+    case '#icons': return 'icons';
+    case '#source-tree': return 'source-tree';
+    case '#components':
+    default: return 'components';
+  }
+}
+
+/**
+ * Get language setting of browser
+ *
+ * @return {String}
+ */
 function getBrowserLanguage() {
-    // check navigator.languages
-    _.each(navigator.languages, check);
+  // check navigator.languages
+  const list = (navigator.languages || []).slice();
 
-    // check other fields
-    var keys = [ 'language', 'browserLanguage', 'systemLanguage', 'userLanguage' ];
-    _.each(keys, (key) => { check(navigator[key]) })
+  // check other fields as well
+  const keys = [ 'language', 'browserLanguage', 'systemLanguage', 'userLanguage' ];
+  for (let key of keys) {
+    list.push(navigator[key]);
+  }
 
-    var code;
-    function check(lang) {
-        if (code === undefined) {
-            if (lang && lang.length >= 2) {
-                code = _.toLower(lang).substr(0, 2);
-            }
-        }
+  for (let lang of list) {
+    if (lang && lang.length >= 2) {
+      return lang.substr(0, 2).toLowerCase();
     }
-    return code;
+  }
+  return 'en';
+}
+
+if (process.env.NODE_ENV !== 'production') {
+  require('./widgets/__PROPTYPES__.js');
 }
