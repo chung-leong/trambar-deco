@@ -6,7 +6,7 @@ const otherHOCs = [ 'Overlay.create' ];
 
 module.exports = {
   mode: (event === 'build') ? 'production' : 'development',
-  context: Path.resolve('./src'),
+  context: Path.resolve('./client/src'),
   entry: './main',
   output: {
     path: Path.resolve('./bin/www'),

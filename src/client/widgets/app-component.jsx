@@ -1,6 +1,6 @@
 import React from 'react';
 import { useListener } from 'relaks';
-import { parse } from 'mark-gor';
+import { reactivate } from 'mark-gor/reactivate';
 
 import { TreeNodeFile } from './tree-node-file.jsx';
 
@@ -74,16 +74,15 @@ export function AppComponent(props) {
   function renderText() {
     const classNames = [ 'text' ];
     const versions = component.text || {};
-    const text = versions[languageCode];
-    if (text === undefined) {
-      text = Object.values(versions)[0] || '';
+    let json = versions[languageCode];
+    if (!json) {
+      json = Object.values(versions)[0] || [];
       classNames.push('missing-language');
     }
-    const contents = parse(text);
     return (
       <div className={classNames.join(' ')}>
         <div className="text-contents">
-          {contents}
+          {reactivate(json)}
           <div className="ellipsis">
             <i className="fa fa-ellipsis-h" />
           </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { parse } from 'mark-gor';
+import { reactivate } from 'mark-gor/reactivate';
 
 // widgets
 import { Overlay } from './overlay.jsx';
@@ -9,7 +9,6 @@ import './app-component-dialog-box.scss';
 
 export const AppComponentDialogBox = Overlay.create((props) => {
   const { component, languageCode, onClose } = props;
-
   if (!component) {
     return null;
   }
@@ -60,13 +59,16 @@ export const AppComponentDialogBox = Overlay.create((props) => {
   function renderText() {
     const classNames = [ 'text' ];
     const versions = component.text;
-    const text = versions[languageCode];
-    if (text === undefined) {
-      text = Object.values(versions)[0] || '';
+    let json = versions[languageCode];
+    if (!json) {
+      json = Object.values(versions)[0] || [];
       classNames.push('missing-language');
     }
-    const contents = parse(text);
-    return <div className={classNames.join(' ')}>{contents}</div>;
+    return (
+      <div className={classNames.join(' ')}>
+        {reactivate(json)}
+      </div>
+    );
   }
 
   /**
