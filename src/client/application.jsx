@@ -86,8 +86,8 @@ export function Application(props) {
 
     const availableLanguages = [];
     for (let component of data.components) {
-      for (let [ code ] of Object.keys(component.text)) {
-        if (!availableLanguages.indexOf(code)) {
+      for (let code of Object.keys(component.text)) {
+        if (availableLanguages.indexOf(code) === -1) {
           availableLanguages.push(code);
         }
       }
@@ -299,25 +299,28 @@ export function Application(props) {
     if (code === languageCode) {
       classNames.push('selected');
     }
-    return (
-      <div key={code} classNames={classNames.push} lang={code} onClick={handleLanguageClick}>
-        {code}
-      </div>
-    );
+    const props = {
+      className: classNames.join(' '),
+      lang: code,
+      onClick: handleLanguageClick,
+    };
+    return <div key={code} {...props}>{code}</div>;
   }
 }
 
 function SideButton(props) {
-  const { selected, title, url, iconClass, onClick} = props;
+  const { selected, title, url, iconClass, onClick } = props;
   const classNames = [ 'button' ];
   if (selected) {
     classNames.push('selected');
   }
-  return (
-    <a className={classNames.join(' ')} href={url} title={title} onClick={onClick}>
-      <i className={`${iconClass} fa-fw`} />
-    </a>
-  );
+  const linkProps = {
+    className: classNames.join(' '),
+    href: url,
+    title,
+    onClick
+  };
+  return <a {...linkProps}><i className={`${iconClass} fa-fw`} /></a>;
 }
 
 /**

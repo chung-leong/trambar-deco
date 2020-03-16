@@ -19,24 +19,20 @@ export class Descriptor {
     this.component = component;
     this.rules = rules;
 
-    const hierarchicalRules = [];
-    const relativeRules = [];
+    const regularRules = [];
     const trambarRules = [];
     for (let rule of rules) {
       if (rule) {
+        const abs = Path.resolve(Path.join(folderPath, rule));
+        const rel = Path.relative(Folder.gitRoot, abs);
         if (isTrambar.test(rule)) {
-          trambarRules.push(rule);
-        } else if (isRelative.test(rule)) {
-          // a rule that requires a relative path
-          relativeRules.push(rule);
+          trambarRules.push(rel);
         } else {
-          // a normal rule
-          hierarchicalRules.push(rule);
+          regularRules.push(rel);
         }
       }
     }
-    this.matching = this.parseFnmatchRules(hierarchicalRules);
-    this.matchingRelative = this.parseFnmatchRules(relativeRules);
+    this.matchingRegular = this.parseFnmatchRules(regularRules);
     this.matchingTrambar = this.parseFnmatchRules(trambarRules);
   }
 
@@ -49,13 +45,14 @@ export class Descriptor {
    */
   parseFnmatchRules(rules) {
     // use engine for handling .gitignore files to match
-    if (rules.length === 0) {
-      return null;
+    if (rules.length > 0) {
+      const ignoreEngine = Ignore().add(rules);
+      return (path) => {
+        return ignoreEngine.ignores(path);
+      };
+    } else {
+      return () => false;
     }
-    const ignoreEngine = Ignore().add(rules);
-    return (path) => {
-      return ignoreEngine.ignores(path);
-    };
   }
 
   /**
@@ -66,40 +63,16 @@ export class Descriptor {
    */
   match(file) {
     try {
-      if (this.matching) {
-        if (isInFolder(file.path, this.folderPath)) {
-          if (!isTrambar.test(file.path)) {
-            const relativePath = Path.relative(this.folderPath, file.path);
-            if (this.matching(relativePath)) {
-              return true;
-            } else {
-              return false;
-            }
-          }
-        }
-      }
-      if (this.matchingRelative) {
-        if (!isTrambar.test(file.path)) {
-          const relativePath = Path.relative(this.folderPath, file.path);
-          if (this.matchingRelative(relativePath)) {
-            return true;
-          } else {
-            return false;
-          }
-        }
-      }
-      if (this.matchingTrambar) {
-        if (isTrambar.test(file.path)) {
-          const relativePath = Path.relative(this.folderPath, file.path);
-          if (this.matchingTrambar(relativePath)) {
-            return true;
-          }
-        }
+      const relativePath = Path.relative(Folder.gitRoot, file.path);
+      if (isTrambar.test(file.path)) {
+        return this.matchingTrambar(relativePath);
+      } else {
+        return this.matchingRegular(relativePath);
       }
     } catch (err) {
-      //console.error(err);
+      console.error(err);
+      return false;
     }
-    return false;
   }
 
   /**
@@ -203,8 +176,8 @@ async function parseDescriptorFile(path, defLangCode) {
 
   const languageTokens = {};
   const defaultLanguageTokens = [];
-  const currentLanguageTokens = defaultLanguageTokens;
   const fileMatchDefinitions = [];
+  let currentLanguageTokens = defaultLanguageTokens;
   let icon = null;
 
   for (let token of tokens) {
@@ -274,14 +247,4 @@ class Component {
       this.image = { url };
     }
   }
-}
-
-function isInFolder(filePath, folderPath) {
-  const len = folderPath.length;
-  if (filePath.substr(0, len) === folderPath) {
-    if (filePath.charAt(len) === '/') {
-      return true;
-    }
-  }
-  return false;
 }

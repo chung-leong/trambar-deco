@@ -19,56 +19,55 @@ if (!Folder.findGitRoot()) {
 }
 if (options.json) {
   outputJSON();
-  process.exit(0);
-}
-
-// start up HTTP service
-const app = Express();
-const server = app.listen(port);
-const wwwFolder = Folder.findWWW();
-app.set('json spaces', 2);
-app.get('/data', async (req, res, next) => {
-  try {
-    const iconLibrary = await FAIconLibrary.load();
-    const folder = await Folder.describeCurrent(languageCode);
-    const data = {
-      root: Folder.gitRoot,
-      components: folder.exportComponents(),
-      folder: folder.exportInfo(true),
-      icons: iconLibrary.icons
-    };
-    res.json(data);
-  } catch (err) {
-    next(err);
-  }
-});
-app.get('/images/*', async (req, res, next) => {
-  try {
-    const relPath = req.params[0];
-    const absPath = Path.join(Folder.gitRoot, relPath);
-    const folderName = Path.basename(Path.dirname(relPath));
-    if (folderName !== '.trambar') {
-      res.sendStatus(404);
-    } else if (!/\.(jpg|jpeg|png|gif|svg)$/i.test(absPath)) {
-      res.sendStatus(404);
-    } else {
-      res.sendFile(absPath);
+} else {
+  // start up HTTP service
+  const app = Express();
+  const server = app.listen(port);
+  const wwwFolder = Folder.findWWW();
+  app.set('json spaces', 2);
+  app.get('/data', async (req, res, next) => {
+    try {
+      const iconLibrary = await FAIconLibrary.load();
+      const folder = await Folder.describeCurrent(languageCode);
+      const data = {
+        root: Folder.gitRoot,
+        components: folder.exportComponents(),
+        folder: folder.exportInfo(true),
+        icons: iconLibrary.icons
+      };
+      res.json(data);
+    } catch (err) {
+      next(err);
     }
-  } catch (err) {
-    next(err);
+  });
+  app.get('/images/*', async (req, res, next) => {
+    try {
+      const relPath = req.params[0];
+      const absPath = Path.join(Folder.gitRoot, relPath);
+      const folderName = Path.basename(Path.dirname(relPath));
+      if (folderName !== '.trambar') {
+        res.sendStatus(404);
+      } else if (!/\.(jpg|jpeg|png|gif|svg)$/i.test(absPath)) {
+        res.sendStatus(404);
+      } else {
+        res.sendFile(absPath);
+      }
+    } catch (err) {
+      next(err);
+    }
+  });
+  app.use(Express.static(wwwFolder));
+
+  // set up websocket server
+  startNotificationService(server, !options['no-shutdown']);
+
+  // open browser window
+  Open(`http://localhost:${port}/`);
+
+  if (!options['no-watch']) {
+    // start monitoring files
+    startFileWatch();
   }
-});
-app.use(Express.static(wwwFolder));
-
-// set up websocket server
-startNotificationService(server, !options['no-shutdown']);
-
-// open browser window
-Open(`http://localhost:${port}/`);
-
-if (!options['no-watch']) {
-  // start monitoring files
-  startFileWatch();
 }
 
 async function outputJSON() {
@@ -78,4 +77,5 @@ async function outputJSON() {
     folder: folder.exportInfo(true),
   };
   console.log(JSON.stringify(data, undefined, 2));
+  process.exit(0);
 }

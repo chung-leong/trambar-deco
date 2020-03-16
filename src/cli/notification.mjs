@@ -12,7 +12,7 @@ function startNotificationService(server, autoShutdown) {
     sockets.push(socket);
     socket.on('close', () => {
       sockets.splice(sockets.indexOf(socket), 1);
-      if (!autoShutdown) {
+      if (autoShutdown) {
         if (sockets.length === 0) {
           beginAutomaticShutdown();
         }
