@@ -29,7 +29,7 @@ export function Application(props) {
   const components = useMemo(() => {
     const { components } = data;
     components.sort((a, b) => {
-      return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+      return a.id.localeCompare(b.id);
     });
     return components;
   }, [ data ]);
@@ -207,7 +207,7 @@ export function Application(props) {
     };
     return (
       <div className="page-view-port">
-        <TreeNodeFolder {...props} />;
+        <TreeNodeFolder {...props} />
         {renderComponentDialogBox()}
       </div>
     );
@@ -257,7 +257,7 @@ export function Application(props) {
       selected: (show) ? dialog.className === className : false,
       onSelect: handleIconSelect,
     };
-    return <FontAwesomeIcon {...props} />
+    return <FontAwesomeIcon {...props} />;
   }
 
   /**

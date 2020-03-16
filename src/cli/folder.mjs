@@ -64,32 +64,32 @@ export class Folder {
       }
     }
     collectFiles(this, files);
-    files.sort((a, b) => String.localeCompare(a.path, b.path));
+    files.sort((a, b) => a.path.localeCompare(b.path));
 
     // create a map connecting files to components
     const componentFileLists = new WeakMap;
+    const components = [];
     for (let file of files) {
       for (let component of file.components) {
-        const fileList = componentFileLists.get(component);
+        let fileList = componentFileLists.get(component);
         if (!fileList) {
           fileList = [];
           componentFileLists.set(component, fileList);
+          components.push(component);
         }
         fileList.push(file);
       }
     }
 
     // attach file list to components
-    const components = [];
-    for (let file of files) {
-      for (let component of file.components) {
-        const fileList = componentFileLists.get(component);
-        const componentEx = { ...component };
-        componentEx.files = fileList.map(file => exportFile(file, false));
-        components.push(componentEx);
-      }
+    const componentExports = [];
+    for (let component of components) {
+      const fileList = componentFileLists.get(component);
+      const componentExport = { ...component };
+      componentExport.files = fileList.map(f => f.exportInfo(false));
+      componentExports.push(componentExport);
     }
-    return components;
+    return componentExports;
   }
 
   /**
@@ -123,7 +123,7 @@ export class Folder {
         if (stats.isDirectory()) {
           const name = Path.basename(childPath);
           if (name !== '.git') {
-            const subfolder = this.find(childPath);
+            const subfolder = await this.find(childPath);
             children.push(subfolder);
           }
         } else {
@@ -137,9 +137,10 @@ export class Folder {
         // then a unlink event; the first event could
         // trigger a scan before the second link clear
         // the cache used by scanFolder()
+        console.log(err);
       }
-      return new Folder(folderPath, children);
     }
+    return new Folder(folderPath, children);
   }
 
   /**

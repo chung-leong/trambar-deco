@@ -2,6 +2,8 @@ import FS from 'fs';
 import Path from 'path';
 import Ignore from 'ignore';
 import ES6 from 'es6-promisify';
+import { Parser, JSONRenderer } from 'mark-gor/html.mjs';
+import { translateClass4To5 } from './fa-compatibility.mjs';
 import { Folder } from './folder.mjs';
 
 const lstatAsync = ES6.promisify(FS.lstat);
@@ -63,35 +65,39 @@ export class Descriptor {
    * @return {Boolean}
    */
   match(file) {
-    if (this.matching) {
-      if (isInFolder(file.path, this.folderPath)) {
+    try {
+      if (this.matching) {
+        if (isInFolder(file.path, this.folderPath)) {
+          if (!isTrambar.test(file.path)) {
+            const relativePath = Path.relative(this.folderPath, file.path);
+            if (this.matching(relativePath)) {
+              return true;
+            } else {
+              return false;
+            }
+          }
+        }
+      }
+      if (this.matchingRelative) {
         if (!isTrambar.test(file.path)) {
           const relativePath = Path.relative(this.folderPath, file.path);
-          if (descriptor.matching(relativePath)) {
+          if (this.matchingRelative(relativePath)) {
             return true;
           } else {
             return false;
           }
         }
       }
-    }
-    if (this.matchingRelative) {
-      if (!isTrambar.test(file.path)) {
-        const relativePath = Path.relative(this.folderPath, file.path);
-        if (descriptor.matchingRelative(relativePath)) {
-          return true;
-        } else {
-          return false;
+      if (this.matchingTrambar) {
+        if (isTrambar.test(file.path)) {
+          const relativePath = Path.relative(this.folderPath, file.path);
+          if (this.matchingTrambar(relativePath)) {
+            return true;
+          }
         }
       }
-    }
-    if (descriptor.matchingTrambar) {
-      if (isTrambar.test(file.path)) {
-        const relativePath = Path.relative(this.folderPath, file.path);
-        if (descriptor.matchingTrambar(relativePath)) {
-          return true;
-        }
-      }
+    } catch (err) {
+      //console.error(err);
     }
     return false;
   }
@@ -142,7 +148,7 @@ export class Descriptor {
     const descriptors = [];
     for (let tbFilePath of tbFilePaths) {
       if (/\.md$/.test(tbFilePath)) {
-        const descriptor = await this.load(folderPath, filePath, defLangCode);
+        const descriptor = await this.load(folderPath, tbFilePath, defLangCode);
         descriptors.push(descriptor);
       }
     }
@@ -192,7 +198,7 @@ export class Descriptor {
 async function parseDescriptorFile(path, defLangCode) {
   const text = await readFileAsync(path, 'utf-8');
 
-  const parser = new MarkGor.Parser;
+  const parser = new Parser;
   const tokens = parser.parse(text);
 
   const languageTokens = {};
@@ -210,17 +216,17 @@ async function parseDescriptorFile(path, defLangCode) {
       if (m) {
         const code = m[1];
         languageTokens[code] = currentLanguageTokens = [];
-        return;
+        continue;
       }
     } else if (token.type === 'code') {
       if (token.lang === 'fnmatch' || token.lang === 'match') {
         fileMatchDefinitions.push(token.text);
-        return;
+        continue;
       }
     } else if (token.type === 'def') {
       if (token.name === 'icon') {
         icon = token.href;
-        return;
+        continue;
       }
     }
     currentLanguageTokens.push(token);
@@ -230,7 +236,7 @@ async function parseDescriptorFile(path, defLangCode) {
   }
   const descriptions = {};
   for (let [ lang, tokens ] of Object.entries(languageTokens)) {
-    const renderer = new MarkGor.JSONRenderer;
+    const renderer = new JSONRenderer;
     const json = renderer.render(tokens);
     descriptions[lang] = json;
   }
@@ -256,8 +262,11 @@ class Component {
     if (/^fa:\/\//.test(url)) {
       // special Font-Awesome URL fa://
       const parts = url.substr(5).split('/');
+      const className4 = parts[0];
+      const className5 = translateClass4To5(className4);
+      const className = (className5) ? className5 : className4.replace('+', ' ');
       this.icon = {
-        class: parts[0],
+        className,
         backgroundColor: parts[1] || null,
         color: parts[2] || null,
       };

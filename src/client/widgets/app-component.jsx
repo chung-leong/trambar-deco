@@ -51,7 +51,7 @@ export function AppComponent(props) {
         </div>
       );
     } else {
-      const iconClassName = icon.class || 'fa-cubes';
+      const { className = 'fas fa-cubes' } = icon;
       const style = {
         color: icon.color,
         backgroundColor: icon.backgroundColor,
@@ -59,7 +59,7 @@ export function AppComponent(props) {
       return (
         <div className="picture">
           <div className="icon" style={style}>
-            <i className={`fa fa-fw ${iconClassName}`} />
+            <i className={`${className} fa-fw`} />
           </div>
         </div>
       );

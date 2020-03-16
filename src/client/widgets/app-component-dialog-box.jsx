@@ -36,7 +36,7 @@ export const AppComponentDialogBox = Overlay.create((props) => {
         </div>
       );
     } else {
-      const iconClassName = icon.class || 'fa-cubes';
+      const { className = 'fas fa-cubes' } = icon;
       const style = {
         color: icon.color,
         backgroundColor: icon.backgroundColor,
@@ -44,7 +44,7 @@ export const AppComponentDialogBox = Overlay.create((props) => {
       return (
         <div className="picture">
           <div className="icon" style={style}>
-            <i className={`fa fa-fw ${iconClassName}`} />
+            <i className={`${className} fa-fw`} />
           </div>
         </div>
       );

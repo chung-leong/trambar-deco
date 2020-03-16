@@ -64,7 +64,7 @@ app.use(Express.static(wwwFolder));
 startNotificationService(server, !options['no-shutdown']);
 
 // open browser window
-//Open(`http://localhost:${port}/`);
+Open(`http://localhost:${port}/`);
 
 if (!options['no-watch']) {
   // start monitoring files
