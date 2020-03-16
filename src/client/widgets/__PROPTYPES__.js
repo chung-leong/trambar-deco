@@ -21,7 +21,7 @@ AppComponent.propTypes = {
 };
 FontAwesomeDialogBox.propTypes = {
   show: PropTypes.bool,
-  iconClassName: PropTypes.string,
+  icon: PropTypes.object,
   onClose: PropTypes.func,
 };
 FontAwesomeIcon.propTypes = {
@@ -29,7 +29,6 @@ FontAwesomeIcon.propTypes = {
   selected: PropTypes.bool,
   onSelect: PropTypes.func,
 };
-
 PushButton.propTypes = {
   label: PropTypes.node,
   hidden: PropTypes.bool,

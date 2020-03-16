@@ -1,12 +1,13 @@
 const Path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const MiniCSSExtractPlugin = require('mini-css-extract-plugin');
 
 const event = process.env.npm_lifecycle_event;
 const otherHOCs = [ 'Overlay.create' ];
 
 module.exports = {
   mode: (event === 'build') ? 'production' : 'development',
-  context: Path.resolve('./client/src'),
+  context: Path.resolve('./src/client'),
   entry: './main',
   output: {
     path: Path.resolve('./bin/www'),
@@ -35,21 +36,18 @@ module.exports = {
       },
       {
         test: /\.css$/,
-        loader: 'css-loader'
+        use: [
+          MiniCSSExtractPlugin.loader,
+          'css-loader',
+        ],
       },
       {
         test: /\.scss$/,
         use: [
-          {
-            loader: 'style-loader'
-          },
-          {
-            loader: 'css-loader'
-          },
-          {
-            loader: 'sass-loader',
-          }
-        ]
+          MiniCSSExtractPlugin.loader,
+          'css-loader',
+          'sass-loader'
+        ],
       },
       {
         test: /\.woff(2)?(\?v=[0-9]\.[0-9]\.[0-9])?$/,
@@ -67,8 +65,12 @@ module.exports = {
   },
   plugins: [
     new HtmlWebpackPlugin({
-      template: Path.resolve(`./src/index.html`),
+      template: Path.resolve(`./src/client/index.html`),
       filename: Path.resolve(`./bin/www/index.html`),
+    }),
+    new MiniCSSExtractPlugin({
+      filename: "[name].css?[hash]",
+      chunkFilename: "[id].css?[hash]"
     }),
   ],
 };

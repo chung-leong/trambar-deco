@@ -7,6 +7,7 @@ import { parseCommandLine } from './command-line.mjs';
 import { startNotificationService } from './notification.mjs';
 import { startFileWatch } from './watch.mjs';
 import { Folder } from './folder.mjs';
+import { FAIconLibrary } from './fa-icon-library.mjs';
 
 const options = parseCommandLine();
 const port = parseInt(options.port) || 8118;
@@ -28,8 +29,14 @@ const wwwFolder = Folder.findWWW();
 app.set('json spaces', 2);
 app.get('/data', async (req, res, next) => {
   try {
+    const iconLibrary = await FAIconLibrary.load();
     const folder = await Folder.describeCurrent(languageCode);
-    const data = folder.exportDescriptions();
+    const data = {
+      root: Folder.gitRoot,
+      components: folder.exportComponents(),
+      folder: folder.exportInfo(true),
+      icons: iconLibrary.icons
+    };
     res.json(data);
   } catch (err) {
     next(err);
@@ -66,6 +73,9 @@ if (!options['no-watch']) {
 
 async function outputJSON() {
   const folder = await Folder.describeCurrent(languageCode);
-  const data = folder.exportData();
+  const data = {
+    components: folder.exportComponents(),
+    folder: folder.exportInfo(true),
+  };
   console.log(JSON.stringify(data, undefined, 2));
 }

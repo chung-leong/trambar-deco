@@ -20,6 +20,23 @@
       padding: 0.2em 0.2em 0.2em 0.2em;
     }
 
+    .variants {
+      float: right;
+      font-size: 0.7em;
+      padding-top: 0.25em;
+      color: #555555;
+
+      .variant {
+        text-transform: uppercase;
+        cursor: pointer;
+
+        &.selected {
+          cursor: default;
+          color: #999999;
+      }
+      }
+    }
+
     .input {
       margin-bottom: 0.5em;
 

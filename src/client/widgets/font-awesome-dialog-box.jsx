@@ -8,13 +8,15 @@ import { PushButton } from './push-button.jsx';
 import './font-awesome-dialog-box.scss';
 
 export const FontAwesomeDialogBox = Overlay.create((props) => {
-  const { show, iconClassName, onClose } = props;
+  const { icon, onClose } = props;
+  const { prefixes, className } = icon;
   const [ color, setColor ] = useState(() => {
     return localStorage.iconColor || '#000000';
   });
   const [ backgroundColor, setBackgroundColor ] = useState(() => {
     return localStorage.iconBackgroundColor || '#fca326';
   });
+  const [ prefix, setPrefix ] = useState(prefixes[0]);
   const urlInputRef = useRef();
 
   const handleColorChange = useListener((evt) => {
@@ -38,9 +40,6 @@ export const FontAwesomeDialogBox = Overlay.create((props) => {
     }
   });
 
-  if (!iconClassName) {
-    return null;
-  }
   return (
     <div className="font-awesome-dialog-box">
       {renderForm()}
@@ -54,7 +53,7 @@ export const FontAwesomeDialogBox = Overlay.create((props) => {
    * @return {ReactElement}
    */
   function renderForm() {
-    let url = `fa://${iconClassName}/${backgroundColor}`;
+    let url = `fa://${prefix}+${className}/${backgroundColor}`;
     if (color !== '#000000') {
       url += `/${color}`;
     }
@@ -65,6 +64,7 @@ export const FontAwesomeDialogBox = Overlay.create((props) => {
           <label>Foreground color</label>
           <input type="color" value={color} onChange={handleColorChange} />
         </div>
+        {renderVariants()}
         <div className="input">
           <label>Background color</label>
           <input type="color" value={backgroundColor} onChange={handleBackgroundColorChange} />
@@ -86,9 +86,41 @@ export const FontAwesomeDialogBox = Overlay.create((props) => {
     const style = { color, backgroundColor };
     return (
       <div className="icon" style={style}>
-        <i className={`fa ${iconClassName} fa-fw`} />
+        <i className={`${prefix} ${className} fa-fw`} />
       </div>
     );
+  }
+
+  function renderVariants() {
+    if (prefixes.length <= 1) {
+      return;
+    }
+    const items = [];
+    for (let [ index, pf ] of prefixes.entries()) {
+      let label;
+      switch (pf) {
+        case 'fas': label = 'solid'; break;
+        case 'far': label = 'reg'; break;
+        case 'fab': label = 'brand'; break;
+      }
+      const classNames = [ 'variant' ];
+      if (pf === prefix) {
+        classNames.push('selected');
+      }
+      const onClick = () => {
+        setPrefix(pf);
+      };
+      const span = (
+        <span key={index} className={classNames.join(' ')} onClick={onClick}>
+          {label}
+        </span>
+      );
+      if (index !== 0) {
+        items.push(' | ');
+      }
+      items.push(span);
+    }
+    return <div className="variants">{items}</div>;
   }
 
   /**

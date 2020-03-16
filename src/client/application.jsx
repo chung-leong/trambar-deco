@@ -6,15 +6,19 @@ import SockJS from 'sockjs-client';
 import { AppComponent } from './widgets/app-component.jsx';
 import { AppComponentDialogBox } from './widgets/app-component-dialog-box.jsx';
 import { TreeNodeFolder } from './widgets/tree-node-folder.jsx';
-import { FontAwesomeIcon, getClassNames } from './widgets/font-awesome-icon.jsx';
+import { FontAwesomeIcon } from './widgets/font-awesome-icon.jsx';
 import { FontAwesomeDialogBox } from './widgets/font-awesome-dialog-box.jsx';
 
-import 'font-awesome/scss/font-awesome.scss';
-import 'application.scss';
+import '@fortawesome/fontawesome-free/css/all.css';
+import './application.scss';
 
 export function Application(props) {
   const [ view, setView ] = useState(getViewFromHash);
-  const [ data, setData ] = useState({ folder: { children: [] } });
+  const [ data, setData ] = useState({
+    folder: { children: [] },
+    components: [],
+    icons: [],
+  });
   const [ availableLanguages, setAvailableLanguages ] = useState([]);
   const [ languageCode, setLanguageCode ] = useState(() => {
     return localStorage.languageCode || getBrowserLanguage();
@@ -23,16 +27,13 @@ export function Application(props) {
   const [ reconnect, setReconnect ] = useEventTime();
   const [ dataChanged, setDataChanged ] = useEventTime();
   const components = useMemo(() => {
-    const { components = [] } = data;
+    const { components } = data;
     components.sort((a, b) => {
       return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
     });
     return components;
   }, [ data ]);
-  const iconClassNames = useMemo(() => {
-    const list = getClassNames();
-    return list;
-  });
+  const { icons } = data;
 
   const handleComponentSelect = useListener((evt) => {
     const { id } = evt;
@@ -115,21 +116,21 @@ export function Application(props) {
    */
   function renderSideNavigation() {
     const componentsProps = {
-      icon: 'cubes',
+      iconClass: 'fas fa-cubes',
       selected: (view === 'components'),
       title: 'Components',
       url: '#components',
       onClick: handleButtonClick,
     };
     const sourceTreeProps = {
-      icon: 'files-o',
+      iconClass: 'far fa-copy',
       selected: (view === 'source-tree'),
       title: 'Source tree',
       url: '#source-tree',
       onClick: handleButtonClick,
     };
     const iconsProps = {
-      icon: 'flag',
+      iconClass: 'fas fa-flag',
       selected: (view === 'icons'),
       title: 'Font Awesome icons',
       url: '#icons',
@@ -232,7 +233,7 @@ export function Application(props) {
   function renderIcons() {
     return (
       <div className="page-view-port">
-        {iconClassNames.map(renderIcon)}
+        {icons.map(renderIcon)}
         {renderIconDialogBox()}
       </div>
     );
@@ -241,15 +242,17 @@ export function Application(props) {
   /**
    * Render Font Awesome icon
    *
-   * @param  {String} className
+   * @param  {Object} icon
    * @param  {Number} index
    *
    * @return {ReactElement}
    */
-  function renderIcon(className, index) {
+  function renderIcon(icon, index) {
+    const { prefixes, className } = icon;
     const show = (dialog && dialog.type === 'icon');
     const props = {
       key: index,
+      prefixes,
       className,
       selected: (show) ? dialog.className === className : false,
       onSelect: handleIconSelect,
@@ -264,10 +267,10 @@ export function Application(props) {
    */
   function renderIconDialogBox() {
     const show = (dialog && dialog.type === 'icon');
-    const iconClassName = (show) ? dialog.className : '';
+    const icon = (show) ? icons.find(i => i.className === dialog.className) : null
     const props = {
       show,
-      iconClassName,
+      icon,
       onClose: handleDialogClose,
     };
     return <FontAwesomeDialogBox {...props} />;
@@ -305,14 +308,14 @@ export function Application(props) {
 }
 
 function SideButton(props) {
-  const { selected, title, url, icon, onClick} = props;
+  const { selected, title, url, iconClass, onClick} = props;
   const classNames = [ 'button' ];
   if (selected) {
     classNames.push('selected');
   }
   return (
     <a className={classNames.join(' ')} href={url} title={title} onClick={onClick}>
-      <i className={`fa fa-${icon} fa-fw`} />
+      <i className={`${iconClass} fa-fw`} />
     </a>
   );
 }

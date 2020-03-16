@@ -31,21 +31,6 @@ export class Folder {
   }
 
   /**
-   * Export all data collected about the current folder
-   *
-   * @param  Folder} folder
-   *
-   * @return {Object}
-   */
-  exportDescriptions(folder) {
-    return {
-      components: this.exportComponents(),
-      folder: this.exportInfo(true),
-      root: Folder.gitRoot,
-    };
-  }
-
-  /**
    * Export folder info
    *
    * @param  {Boolean} includeComponents

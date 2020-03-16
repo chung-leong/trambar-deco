@@ -3,6 +3,7 @@ import Path from 'path';
 import { GitIgnore } from './git-ignore.mjs';
 import { Descriptor } from './descriptor.mjs';
 import { Folder } from './folder.mjs';
+import { sendChangeNotification } from './notification.mjs';
 
 let watcher;
 
